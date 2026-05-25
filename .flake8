@@ -1,0 +1,17 @@
+[flake8]
+# Cho phép dòng code dài tối đa 200 ký tự (thay vì 79 mặc định)
+max-line-length = 200
+
+# Bỏ qua các thư mục không cần kiểm tra code
+exclude =
+    .git,
+    __pycache__,
+    venv,
+    .venv,
+    env,
+    .github
+
+# Bỏ qua một số mã lỗi format không quá quan trọng (nếu team bạn muốn)
+# E203: khoảng trắng trước dấu ':'
+# W503: ngắt dòng trước toán tử nhị phân
+extend-ignore = E203, W503
