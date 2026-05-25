@@ -227,25 +227,9 @@ project-root/
 
 # 5. Dataset
 
-## 5.1 Dataset đề xuất
-
-Có thể sử dụng:
-
-### Option 1
-
-News Category Dataset
-
-### Option 2
+## 5.1 Dataset sử dụng
 
 BBC News Dataset
-
-### Option 3
-
-Amazon Product Reviews
-
-### Option 4
-
-Vietnamese News Dataset
 
 ---
 
