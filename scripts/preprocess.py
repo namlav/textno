@@ -9,17 +9,18 @@ from app.utils.preprocessing import preprocess
 
 def preprocess_dataset(input_path: str, output_path: str, text_columns: list[str]):
     df = pd.read_csv(input_path)
+    df = df.drop_duplicates()
     for col in text_columns:
         if col in df.columns:
-            df[col] = df[col].astype(str).apply(preprocess)
+            df[col] = df[col].fillna("").apply(preprocess)
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    df.to_csv(output_path, index=False)
+    df.to_csv(output_path, index=False, encoding="utf-8")
     print(f"Preprocessed data saved to {output_path}")
     print(f"Total records: {len(df)}")
 
 
 if __name__ == "__main__":
-    input_path = sys.argv[1] if len(sys.argv) > 1 else "../data/raw/dataset.csv"
-    output_path = sys.argv[2] if len(sys.argv) > 2 else "../data/processed/cleaned.csv"
-    columns = sys.argv[3].split(",") if len(sys.argv) > 3 else ["title", "content"]
+    input_path = sys.argv[1] if len(sys.argv) > 1 else "data/raw/books.csv"
+    output_path = sys.argv[2] if len(sys.argv) > 2 else "data/processed/cleaned.csv"
+    columns = sys.argv[3].split(",") if len(sys.argv) > 3 else ["title", "description"]
     preprocess_dataset(input_path, output_path, columns)

@@ -11,10 +11,13 @@ from app.services.search import rebuild_index
 
 def generate_and_store_embeddings(
     csv_path: str,
-    text_column: str = "content",
-    embed_dir: str = "../data/embeddings",
+    text_column: str = "embedding_text",
+    embed_dir: str = "data/embeddings",
 ):
     df = pd.read_csv(csv_path)
+    if text_column not in df.columns:
+        raise ValueError(f"Column '{text_column}' not found in {csv_path}")
+
     texts = df[text_column].astype(str).tolist()
     print(f"Generating embeddings for {len(texts)} documents...")
 
@@ -22,6 +25,9 @@ def generate_and_store_embeddings(
     os.makedirs(embed_dir, exist_ok=True)
 
     np.save(os.path.join(embed_dir, "embeddings.npy"), embeddings)
+    if "source_id" in df.columns:
+        df[["source_id"]].to_csv(os.path.join(embed_dir, "embedding_ids.csv"), index=False)
+
     print(f"Embeddings saved to {embed_dir}/embeddings.npy")
     print(f"Shape: {embeddings.shape}")
 
@@ -30,7 +36,7 @@ def generate_and_store_embeddings(
 
 
 if __name__ == "__main__":
-    csv_path = sys.argv[1] if len(sys.argv) > 1 else "../data/processed/cleaned.csv"
-    text_col = sys.argv[2] if len(sys.argv) > 2 else "content"
-    embed_dir = sys.argv[3] if len(sys.argv) > 3 else "../data/embeddings"
+    csv_path = sys.argv[1] if len(sys.argv) > 1 else "data/processed/books_clean.csv"
+    text_col = sys.argv[2] if len(sys.argv) > 2 else "embedding_text"
+    embed_dir = sys.argv[3] if len(sys.argv) > 3 else "data/embeddings"
     generate_and_store_embeddings(csv_path, text_col, embed_dir)
