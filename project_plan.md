@@ -229,16 +229,13 @@ project-root/
 
 ## 5.1 Dataset sử dụng
 
-BBC News Dataset
+VNExpress Dataset
 
 ---
 
 ## 5.2 Nguồn dataset
 
 * Kaggle
-* HuggingFace Datasets
-* Crawl web
-* API
 
 ---
 
