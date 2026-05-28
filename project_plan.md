@@ -528,12 +528,10 @@ feature/*
 
 Feature branches.
 
-Ví dụ:
-
 ```text
-feature/backend-api
-feature/frontend-ui
-feature/preprocessing
+feature/backend-core
+Caotiendev (frontend)
+feature/data-nlp-books
 ```
 
 ---
@@ -589,6 +587,7 @@ pip install -r requirements.txt
 ## 13.4 Run backend
 
 ```bash
+cd backend
 uvicorn app.main:app --reload
 ```
 
