@@ -1,397 +1,248 @@
-# app.py — AI Semantic Search Dashboard (Enhanced UI)
-
 import streamlit as st
+import requests
 import pandas as pd
 import time
+import plotly.express as px
 
-# =====================================================
-# PAGE CONFIG
-# =====================================================
+# --- CẤU HÌNH HỆ THỐNG ---
+API_BASE = "http://localhost:8000"
 
 st.set_page_config(
-    page_title="SemanticAI Dashboard",
-    page_icon="🧠",
+    page_title="Text Document Management System - VNExpress AI Search",
+    page_icon="📄",
     layout="wide",
-    initial_sidebar_state="expanded"
 )
 
-# =====================================================
-# CUSTOM CSS
-# =====================================================
-
+# --- CUSTOM CSS (Giao diện tone sáng, màu chủ đạo Xanh ngọc bích thanh lịch) ---
 st.markdown("""
-<style>
+    <style>
+    .main { background-color: #f4f6f9; }
+    .stButton>button { width: 100%; border-radius: 20px; }
+    .news-card {
+        padding: 20px;
+        border-radius: 12px;
+        background-color: white;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        margin-bottom: 15px;
+        border-left: 6px solid #008080;
+    }
+    .category-tag {
+        background-color: #e0f2f1;
+        color: #004d40;
+        padding: 3px 12px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+    .meta-text { color: #666; font-size: 12px; margin-top: 5px; }
+    .latency-text { color: #004d40; font-style: italic; font-size: 12px; }
+    </style>
+    """, unsafe_allow_html=True)
 
-.main {
-    background-color: #0F172A;
-    color: white;
-}
+# --- SIDEBAR: THÔNG TIN HỆ THỐNG CHUẨN ENTERPRISE ---
+with st.sidebar:
+    st.markdown("""
+        <div style="text-align: center; margin-bottom: 20px;">
+            <img src="https://cdn-icons-png.flaticon.com/512/2965/2965333.png" width="70">
+            <h2 style="color: #008080; margin-top: 10px; font-size: 22px; font-weight: bold;">VNExpress AI Portal</h2>
+            <p style="font-size: 12px; color: #666; font-style: italic;">Hệ thống Quản trị & Biên tập Tin tức</p>
+        </div>
+        <hr style="margin: 10px 0;">
+    """, unsafe_allow_html=True)
+    
+    st.info("🧠 **AI Powered System**\n\nHệ quản trị dữ liệu văn bản phi cấu trúc và tìm kiếm ngữ nghĩa nâng cao trên nền tảng không gian Vector.")
+    
+    st.markdown("<p style='font-weight: bold; color: #333; margin-top: 15px; margin-bottom: 5px; font-size: 13px;'>🌐 PHÂN QUYỀN HỆ THỐNG (ROLES)</p>", unsafe_allow_html=True)
+    
+    st.markdown("""
+        <style>
+        .role-box {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            background-color: #ffffff;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            border: 1px solid #eef2f5;
+        }
+        .role-dot { width: 8px; height: 8px; border-radius: 50%; background-color: #008080; margin-right: 10px; }
+        .role-title { font-size: 12px; font-weight: 500; color: #444; }
+        .infra-tag { font-size: 11px; color: #555; background-color: #eaeded; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
+        </style>
+    """, unsafe_allow_html=True)
 
-section[data-testid="stSidebar"] {
-    background-color: #111827;
-    border-right: 1px solid #1E293B;
-}
+    roles = ["System Administrator (Root)", "Data Engineer / NLP Specialist", "Frontend Developer (UI/UX)"]
+    for r in roles:
+        st.markdown(f'<div class="role-box"><div class="role-dot"></div><div class="role-title">{r}</div></div>', unsafe_allow_html=True)
 
-.block-container {
-    padding-top: 2rem;
-}
+    st.markdown("<br><p style='font-weight: bold; color: #333; margin-bottom: 5px; font-size: 13px;'>🛠️ THÔNG SỐ HẠ TẦNG (INFRA)</p>", unsafe_allow_html=True)
+    st.markdown("• Embedding: <span class='infra-tag'>all-MiniLM-L6-v2</span>", unsafe_allow_html=True)
+    st.markdown("• NoSQL CSDL: <span class='infra-tag'>MongoDB Atlas</span>", unsafe_allow_html=True)
+    st.markdown("• Vector DB: <span class='infra-tag'>FAISS CPU Index</span>", unsafe_allow_html=True)
+    
+    st.markdown("---")
+    st.success("Cổng truyền dữ liệu: **Online**")
 
-.hero-box {
-    background: linear-gradient(
-        135deg,
-        #1E293B,
-        #0F172A
-    );
-    padding: 2rem;
-    border-radius: 24px;
-    border: 1px solid #334155;
-    margin-bottom: 2rem;
-}
+# --- APP HEADER ---
+st.title("📄 Text Document Management System")
+st.write("Hệ quản trị dữ liệu văn bản phi cấu trúc kết hợp Tìm kiếm ngữ nghĩa (Semantic Search)")
 
-.metric-card {
-    background-color: #111827;
-    padding: 1.5rem;
-    border-radius: 20px;
-    border: 1px solid #1E293B;
-    text-align: center;
-}
+tab1, tab2, tab3 = st.tabs(["🔍 Intelligent Search", "📊 Document Analytics", "➕ Add Document"])
 
-.result-card {
-    background-color: #111827;
-    padding: 1.5rem;
-    border-radius: 20px;
-    border: 1px solid #1E293B;
-    margin-bottom: 1rem;
-}
-
-.tag {
-    display: inline-block;
-    padding: 0.3rem 0.8rem;
-    border-radius: 999px;
-    background-color: #1E293B;
-    margin-right: 0.5rem;
-    margin-top: 0.5rem;
-    font-size: 0.8rem;
-}
-
-.score-box {
-    background: linear-gradient(
-        90deg,
-        #06B6D4,
-        #8B5CF6
-    );
-    padding: 0.4rem 1rem;
-    border-radius: 999px;
-    color: white;
-    font-weight: bold;
-    display: inline-block;
-}
-
-.search-box {
-    background-color: #111827;
-    border-radius: 20px;
-    padding: 1rem;
-    border: 1px solid #334155;
-}
-
-</style>
-""", unsafe_allow_html=True)
-
-# =====================================================
-# SIDEBAR
-# =====================================================
-
-st.sidebar.title("🧠 SemanticAI")
-
-menu = st.sidebar.radio(
-    "Navigation",
-    [
-        "Dashboard",
-        "Semantic Search",
-        "Documents",
-        "Analytics",
-        "Architecture"
+# ==========================================
+# TAB 1: INTELLIGENT SEARCH
+# ==========================================
+with tab1:
+    st.subheader("Trải nghiệm Sức mạnh Tìm kiếm Ngữ nghĩa AI")
+    
+    st.write("💡 **Gợi ý kịch bản Demo nhanh:**")
+    cols = st.columns(4)
+    suggestions = [
+        "Ứng dụng trí tuệ nhân tạo trong học tập", 
+        "Biến động kinh tế thị trường và giá vàng", 
+        "Chiến thuật của đội tuyển bóng đá quốc gia", 
+        "Khám phá loài sinh vật mới dưới biển sâu"
     ]
-)
+    
+    if 'query_input' not in st.session_state:
+        st.session_state.query_input = ""
 
-st.sidebar.markdown("---")
+    for i, suggestion in enumerate(suggestions):
+        if cols[i].button(suggestion):
+            st.session_state.query_input = suggestion
 
-st.sidebar.info("""
-Current Model:
-Sentence-BERT
-""")
+    query = st.text_input("Nhập ý tưởng hoặc nhu cầu tìm kiếm tin tức của bạn:", 
+                          value=st.session_state.query_input,
+                          placeholder="Ví dụ: Xu hướng phát triển công nghệ giáo dục thông minh hiện nay...")
+    
+    col_search, col_k = st.columns([3, 1])
+    with col_k:
+        top_k = st.select_slider("Số lượng kết quả hiển thị", options=[1, 2, 3, 5], value=3)
 
-# =====================================================
-# DASHBOARD
-# =====================================================
+    if st.button("Kích hoạt AI Search", type="primary"):
+        if query:
+            start_time = time.time()
+            try:
+                resp = requests.post(f"{API_BASE}/documents/search", params={"query": query, "top_k": top_k})
+                if resp.status_code == 200:
+                    results = resp.json()
+                    latency = round(time.time() - start_time, 3)
+                    
+                    st.markdown(f"⏱️ <span class='latency-text'>AI hoàn thành quét không gian vector trong {latency} giây</span>", unsafe_allow_html=True)
+                    col_left, col_right = st.columns(2)
+                    
+                    with col_left:
+                        st.markdown("### 🔍 Keyword Match (TF-IDF)")
+                        st.caption("Tìm kiếm dựa trên từ khóa trùng khớp chính xác")
+                        st.warning("Hạn chế: Tìm kiếm truyền thống dễ bỏ sót tài liệu nếu không gõ trúng chuẩn xác từng ký tự từ khóa gốc.")
+                        
+                    with col_right:
+                        st.markdown("### 🧠 Semantic Match (SBERT + FAISS)")
+                        st.caption("Tìm kiếm dựa trên hiểu biết ngữ nghĩa cốt truyện")
+                        for r in results:
+                            with st.container():
+                                raw_tags = r.get('tags', 'General')
+                                first_tag = raw_tags.split(',')[0] if isinstance(raw_tags, str) else 'General'
+                                
+                                st.markdown(f"""
+                                <div class="news-card">
+                                    <span class="category-tag">{first_tag}</span>
+                                    <h4 style="margin: 8px 0 4px 0; color:#008080;">{r['title']}</h4>
+                                    <p class="meta-text">👤 Tác giả: {r.get('author', 'Ký giả')} | 📅 Cập nhật: {r.get('updatetime', 'N/A')} | 📰 Nguồn: {r.get('publication', 'VNExpress')}</p>
+                                </div>
+                                """, unsafe_allow_html=True)
+                                with st.expander("Đọc toàn bộ nội dung & Kiểm tra Score"):
+                                    st.write(r['content'])
+                                    if r.get('wordcount'):
+                                        st.caption(f"📝 Độ dài văn bản: {r['wordcount']} từ")
+                                    score = r.get('score', 0.0)
+                                    st.progress(max(0.0, min(float(score), 1.0)), text=f"Cosine Similarity Score: {score}")
+                else:
+                    st.error("Lỗi phản hồi dữ liệu từ API Backend.")
+            except:
+                st.error("Không thể kết nối với Backend Server. Vui lòng đảm bảo server uvicorn FastAPI đang chạy.")
+        else:
+            st.warning("Vui lòng nhập nội dung cần tìm kiếm!")
 
-if menu == "Dashboard":
+# ==========================================
+# TAB 2: DOCUMENT ANALYTICS
+# ==========================================
+with tab2:
+    st.subheader("Hệ thống Quản trị & Phân tích kho dữ liệu MongoDB")
+    
+    try:
+        resp = requests.get(f"{API_BASE}/documents")
+        if resp.status_code == 200:
+            data = resp.json()
+            df = pd.DataFrame(data)
+            
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Tổng văn bản (Documents)", len(df))
+            m2.metric("Nhãn độc lập (Tags Unique)", df['tags'].nunique() if 'tags' in df.columns else 0)
+            m3.metric("Nguồn Dataset", "VNExpress (Kaggle)")
+            m4.metric("Dữ liệu Vector Space", "Đồng bộ", delta="FAISS Ready")
+            
+            st.write("---")
+            col_chart, col_table = st.columns([1, 1])
+            
+            with col_chart:
+                st.write("**Tỷ lệ phân bổ tài liệu theo Nhãn chính (Tags)**")
+                if 'tags' in df.columns:
+                    df['main_tag'] = df['tags'].apply(lambda x: x.split(',')[0].strip() if isinstance(x, str) else 'General')
+                    fig = px.pie(df, names='main_tag', hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe)
+                    st.plotly_chart(fig, use_container_width=True)
+            
+            with col_table:
+                st.write("**Danh sách văn bản mới cập nhật**")
+                display_cols = [c for c in ['title', 'tags', 'author', 'updatetime'] if c in df.columns]
+                st.dataframe(df[display_cols].tail(5), use_container_width=True)
+                if st.button("Xem cấu trúc JSON thô (MongoDB BSON)"):
+                    st.json(data)
+        else:
+            st.info("Cơ sở dữ liệu MongoDB hiện đang trống.")
+    except:
+        st.error("Backend offline. Vui lòng kích hoạt API Server để hiển thị biểu đồ phân tích.")
 
-    st.markdown("""
-    <div class="hero-box">
-        <h1>🚀 AI Semantic Search Dashboard</h1>
-        <p>
-        Search documents using semantic understanding
-        instead of keyword matching.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        st.markdown("""
-        <div class="metric-card">
-            <h2>5,204</h2>
-            <p>Total Documents</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col2:
-        st.markdown("""
-        <div class="metric-card">
-            <h2>5,204</h2>
-            <p>Embeddings</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col3:
-        st.markdown("""
-        <div class="metric-card">
-            <h2>0.12s</h2>
-            <p>Search Latency</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col4:
-        st.markdown("""
-        <div class="metric-card">
-            <h2>91%</h2>
-            <p>Accuracy</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    st.subheader("📌 System Stack")
-
-    st.success("""
-    FastAPI + MongoDB + FAISS + Sentence-BERT + Streamlit
-    """)
-
-# =====================================================
-# SEMANTIC SEARCH
-# =====================================================
-
-elif menu == "Semantic Search":
-
-    st.markdown("""
-    <div class="hero-box">
-        <h1>🔍 Semantic Search</h1>
-        <p>
-        Find documents by meaning, not exact keywords.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    query = st.text_input(
-        "Search documents by meaning..."
-    )
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        method = st.radio(
-            "Search Method",
-            [
-                "Sentence-BERT",
-                "TF-IDF"
-            ]
-        )
-
-    with col2:
-        top_k = st.slider(
-            "Top-K Results",
-            1,
-            10,
-            5
-        )
-
-    if st.button("🚀 Run Semantic Search"):
-
-        with st.spinner("Searching semantic space..."):
-            time.sleep(1)
-
-        results = [
-            {
-                "title": "Doraemon",
-                "score": 0.91,
-                "content": "Mèo máy đến từ tương lai.",
-                "tags": ["robot", "manga", "kids"]
-            },
-            {
-                "title": "Naruto",
-                "score": 0.84,
-                "content": "Ninja trẻ tuổi với ước mơ trở thành Hokage.",
-                "tags": ["ninja", "anime"]
-            },
-            {
-                "title": "Sherlock Holmes",
-                "score": 0.78,
-                "content": "Tiểu thuyết trinh thám nổi tiếng.",
-                "tags": ["detective", "novel"]
-            }
-        ]
-
-        st.markdown("---")
-
-        st.subheader("📚 Search Results")
-
-        for item in results[:top_k]:
-
-            tags_html = ""
-
-            for tag in item["tags"]:
-                tags_html += f'''
-                <span class="tag">
-                    #{tag}
-                </span>
-                '''
-
-            st.markdown(f"""
-            <div class="result-card">
-
-                <h2>📘 {item["title"]}</h2>
-
-                <div class="score-box">
-                    Similarity Score: {item["score"]}
-                </div>
-
-                <br><br>
-
-                <p>{item["content"]}</p>
-
-                {tags_html}
-
-            </div>
-            """, unsafe_allow_html=True)
-
-# =====================================================
-# DOCUMENTS PAGE
-# =====================================================
-
-elif menu == "Documents":
-
-    st.markdown("""
-    <div class="hero-box">
-        <h1>📚 Document Management</h1>
-        <p>
-        Manage unstructured documents and datasets.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    with st.form("add_document"):
-
-        title = st.text_input("Document Title")
-
-        content = st.text_area(
-            "Document Content"
-        )
-
-        tags = st.text_input(
-            "Tags (comma separated)"
-        )
-
-        submit = st.form_submit_button(
-            "➕ Add Document"
-        )
-
-        if submit:
-
-            st.success(
-                "Document added successfully!"
-            )
-
-    st.markdown("---")
-
-    st.subheader("📄 Existing Documents")
-
-    docs = pd.DataFrame({
-        "Title": [
-            "Doraemon",
-            "Naruto",
-            "Sherlock Holmes"
-        ],
-        "Category": [
-            "Manga",
-            "Anime",
-            "Novel"
-        ]
-    })
-
-    st.dataframe(
-        docs,
-        use_container_width=True
-    )
-
-# =====================================================
-# ANALYTICS
-# =====================================================
-
-elif menu == "Analytics":
-
-    st.markdown("""
-    <div class="hero-box">
-        <h1>📊 Search Analytics</h1>
-        <p>
-        Monitor semantic search performance.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    chart_data = pd.DataFrame({
-        "Searches": [10, 20, 15, 35, 50]
-    })
-
-    st.line_chart(chart_data)
-
-    st.markdown("---")
-
-    st.subheader("🔥 Top Search Keywords")
-
-    st.write("""
-    - robot
-    - ninja
-    - AI
-    - detective
-    """)
-
-# =====================================================
-# ARCHITECTURE
-# =====================================================
-
-elif menu == "Architecture":
-
-    st.markdown("""
-    <div class="hero-box">
-        <h1>🏗️ System Architecture</h1>
-        <p>
-        End-to-end semantic retrieval pipeline.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.code("""
-User Query
-    ↓
-Preprocessing
-    ↓
-Sentence-BERT Embedding
-    ↓
-FAISS Vector Search
-    ↓
-MongoDB Retrieval
-    ↓
-Top-K Results
-    """)
+# ==========================================
+# TAB 3: ADD DOCUMENT
+# ==========================================
+with tab3:
+    st.subheader("Thêm Tài liệu Văn bản & Kích hoạt Vector Embedding")
+    
+    with st.form("entry_form", clear_on_submit=True):
+        c1, c2 = st.columns(2)
+        with c1:
+            title = st.text_input("Tiêu đề bài báo *")
+            author = st.text_input("Tác giả")
+            publication = st.text_input("Nguồn xuất bản (Publication)", value="VNExpress")
+        with c2:
+            tags = st.text_input("Từ khóa / Nhãn (Tags) *", placeholder="Ví dụ: Công nghệ, AI, Giáo dục")
+            updatetime = st.date_input("Ngày cập nhật")
+            
+        summary = st.text_area("Nội dung chi tiết bài viết (Dữ liệu văn bản phi cấu trúc) *", height=180)
+        submitted = st.form_submit_button("Lưu Tài Liệu & Đồng Bộ AI Index", type="primary")
+        
+        if submitted:
+            if title and summary and tags:
+                word_count = len(summary.split())
+                payload = {
+                    "title": title, 
+                    "author": author if author else "Ký giả VNExpress", 
+                    "publication": publication,
+                    "tags": tags, 
+                    "updatetime": str(updatetime), 
+                    "wordcount": word_count,
+                    "content": summary
+                }
+                try:
+                    res = requests.post(f"{API_BASE}/documents", json=payload)
+                    if res.status_code in [200, 201]:
+                        st.balloons()
+                        st.success(f"Đã lưu thành công bài báo: '{title}'. Pipeline đã hoàn thành trích xuất Vector Embedding!")
+                    else:
+                        st.error(f"Backend từ chối nạp dữ liệu (Mã lỗi: {res.status_code})")
+                except:
+                    st.error("Không thể kết nối đến API Endpoint. Vui lòng kiểm tra cổng mạng.")
+            else:
+                st.warning("Vui lòng nhập đầy đủ các trường dữ liệu bắt buộc (*)")
