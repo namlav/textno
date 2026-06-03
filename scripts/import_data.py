@@ -48,5 +48,14 @@ def import_dataset(
 
 
 if __name__ == "__main__":
-    csv_path = sys.argv[1] if len(sys.argv) > 1 else "../data/processed/cleaned.csv"
-    import_dataset(csv_path)
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(current_dir, ".."))
+    csv_path = (
+        sys.argv[1]
+        if len(sys.argv) > 1
+        else os.path.join(project_root, "data/processed/cleaned.csv")
+    )
+    # csv_path = ../data/processed/cleaned.csv"
+    import_dataset(
+        csv_path, category_col="tags"
+    )  # đọc cột "tags" có trong dataset thay vì "category"
