@@ -13,12 +13,14 @@ st.set_page_config(
     layout="wide",
 )
 
-# --- CUSTOM CSS (Giao diện tone sáng, màu chủ đạo Xanh ngọc bích thanh lịch) ---
+# --- CUSTOM CSS (Giao diện tone sáng, tối ưu hiển thị Metadata không bị dính chữ) ---
 st.markdown(
     """
     <style>
     .main { background-color: #f4f6f9; }
     .stButton>button { width: 100%; border-radius: 20px; }
+    
+    /* Giao diện thẻ bài viết Semantic Match */
     .news-card {
         padding: 20px;
         border-radius: 12px;
@@ -27,6 +29,17 @@ st.markdown(
         margin-bottom: 15px;
         border-left: 6px solid #008080;
     }
+    
+    /* Giao diện thẻ bài viết Keyword Match */
+    .news-card-kw {
+        padding: 20px;
+        border-radius: 12px;
+        background-color: white;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        margin-bottom: 15px;
+        border-left: 6px solid #ff9800;
+    }
+    
     .category-tag {
         background-color: #e0f2f1;
         color: #004d40;
@@ -36,7 +49,32 @@ st.markdown(
         font-weight: bold;
         text-transform: uppercase;
     }
-    .meta-text { color: #666; font-size: 12px; margin-top: 5px; }
+    
+    .category-tag-kw {
+        background-color: #fff3e0;
+        color: #e65100;
+        padding: 3px 12px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+    
+    /* Khung cấu trúc Metadata bóc tách riêng biệt chuyên nghiệp */
+    .meta-line {
+        font-size: 13px;
+        color: #555555;
+        margin-top: 12px;
+        margin-bottom: 0px;
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+    }
+    .meta-item {
+        display: inline-flex;
+        align-items: center;
+    }
+    
     .latency-text { color: #004d40; font-style: italic; font-size: 12px; }
     </style>
     """,
@@ -128,7 +166,7 @@ tab1, tab2, tab3 = st.tabs(
 )
 
 # ==========================================
-# TAB 1: INTELLIGENT SEARCH
+# TAB 1: INTELLIGENT SEARCH (KẾT NỐI API THẬT)
 # ==========================================
 with tab1:
     st.subheader("Trải nghiệm Sức mạnh Tìm kiếm Ngữ nghĩa AI")
@@ -165,6 +203,7 @@ with tab1:
         if query:
             start_time = time.time()
             try:
+                # GỌI API BACKEND: Thực hiện tìm kiếm kết hợp (Hybrid/Semantic)
                 resp = requests.post(
                     f"{API_BASE}/search", params={"query": query, "top_k": top_k}
                 )
@@ -178,43 +217,71 @@ with tab1:
                     )
                     col_left, col_right = st.columns(2)
 
+                    # --- CỘT TRÁI: KEYWORD MATCH (TF-IDF) ---
                     with col_left:
                         st.markdown("### 🔍 Keyword Match (TF-IDF)")
                         st.caption("Tìm kiếm dựa trên từ khóa trùng khớp chính xác")
                         st.warning(
                             "Hạn chế: Tìm kiếm truyền thống dễ bỏ sót tài liệu nếu không gõ trúng chuẩn xác từng ký tự từ khóa gốc."
                         )
-
-                    with col_right:
-                        st.markdown("### 🧠 Semantic Match (SBERT + FAISS)")
-                        st.caption("Tìm kiếm dựa trên hiểu biết ngữ nghĩa cốt truyện")
+                        
                         for r in results:
                             with st.container():
                                 raw_tags = r.get("tags", "General")
-                                first_tag = (
-                                    raw_tags.split(",")[0]
-                                    if isinstance(raw_tags, str)
-                                    else "General"
+                                first_tag = raw_tags.split(",")[0] if isinstance(raw_tags, str) else "General"
+                                
+                                author = r.get('author') if r.get('author') else "Ký giả"
+                                updatetime = r.get('updatetime') if r.get('updatetime') else "N/A"
+                                publication = r.get('publication') if r.get('publication') else "VNExpress"
+                                
+                                st.markdown(
+                                    f"""
+                                    <div class="news-card-kw">
+                                        <span class="category-tag-kw">{first_tag}</span>
+                                        <h4 style="margin: 10px 0 4px 0; color:#e65100; font-size:16px; font-weight:bold;">{r['title']}</h4>
+                                        <div class="meta-line">
+                                            <span class="meta-item">✍️ <b>Tác giả:</b> {author}</span>
+                                            <span class="meta-item">📅 <b>Cập nhật:</b> {updatetime}</span>
+                                            <span class="meta-item">📰 <b>Nguồn:</b> {publication}</span>
+                                        </div>
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True,
                                 )
+
+                    # --- CỘT PHẢI: SEMANTIC MATCH (SBERT + FAISS) ---
+                    with col_right:
+                        st.markdown("### 🧠 Semantic Match (SBERT + FAISS)")
+                        st.caption("Tìm kiếm dựa trên hiểu biết ngữ nghĩa cốt truyện")
+                        
+                        for r in results:
+                            with st.container():
+                                raw_tags = r.get("tags", "General")
+                                first_tag = raw_tags.split(",")[0] if isinstance(raw_tags, str) else "General"
+                                
+                                author = r.get('author') if r.get('author') else "Ký giả"
+                                updatetime = r.get('updatetime') if r.get('updatetime') else "N/A"
+                                publication = r.get('publication') if r.get('publication') else "VNExpress"
 
                                 st.markdown(
                                     f"""
-                                <div class="news-card">
-                                    <span class="category-tag">{first_tag}</span>
-                                    <h4 style="margin: 8px 0 4px 0; color:#008080;">{r['title']}</h4>
-                                    <p class="meta-text">👤 Tác giả: {r.get('author', 'Ký giả')} | 📅 Cập nhật: {r.get('updatetime', 'N/A')} | 📰 Nguồn: {r.get('publication', 'VNExpress')}</p>
-                                </div>
-                                """,
+                                    <div class="news-card">
+                                        <span class="category-tag">{first_tag}</span>
+                                        <h4 style="margin: 10px 0 4px 0; color:#008080; font-size:16px; font-weight:bold;">{r['title']}</h4>
+                                        <div class="meta-line">
+                                            <span class="meta-item">✍️ <b>Tác giả:</b> {author}</span>
+                                            <span class="meta-item">📅 <b>Cập nhật:</b> {updatetime}</span>
+                                            <span class="meta-item">📰 <b>Nguồn:</b> {publication}</span>
+                                        </div>
+                                    </div>
+                                    """,
                                     unsafe_allow_html=True,
                                 )
-                                with st.expander(
-                                    "Đọc toàn bộ nội dung & Kiểm tra Score"
-                                ):
+                                with st.expander("Đọc toàn bộ nội dung & Kiểm tra Score"):
                                     st.write(r["content"])
                                     if r.get("wordcount"):
-                                        st.caption(
-                                            f"📝 Độ dài văn bản: {r['wordcount']} từ"
-                                        )
+                                        st.caption(f"📝 Độ dài văn bản: {r['wordcount']} từ")
+                                    
                                     score = r.get("score", 0.0)
                                     st.progress(
                                         max(0.0, min(float(score), 1.0)),
@@ -230,64 +297,70 @@ with tab1:
             st.warning("Vui lòng nhập nội dung cần tìm kiếm!")
 
 # ==========================================
-# TAB 2: DOCUMENT ANALYTICS
+# TAB 2: DOCUMENT ANALYTICS (GỌI API GET TOÀN BỘ DATA)
 # ==========================================
 with tab2:
     st.subheader("Hệ thống Quản trị & Phân tích kho dữ liệu MongoDB")
 
     try:
+        # GỌI API BACKEND: Kéo toàn bộ danh sách tài liệu từ MongoDB lên để thống kê
         resp = requests.get(f"{API_BASE}/documents")
         if resp.status_code == 200:
             data = resp.json()
-            df = pd.DataFrame(data)
+            
+            if data:
+                df = pd.DataFrame(data)
 
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Tổng văn bản (Documents)", len(df))
-            m2.metric(
-                "Nhãn độc lập (Tags Unique)",
-                df["tags"].nunique() if "tags" in df.columns else 0,
-            )
-            m3.metric("Nguồn Dataset", "VNExpress (Kaggle)")
-            m4.metric("Dữ liệu Vector Space", "Đồng bộ", delta="FAISS Ready")
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Tổng văn bản (Documents)", len(df))
+                m2.metric(
+                    "Nhãn độc lập (Tags Unique)",
+                    df["tags"].nunique() if "tags" in df.columns else 0,
+                )
+                m3.metric("Nguồn Dataset", "VNExpress (Kaggle)")
+                m4.metric("Dữ liệu Vector Space", "Đồng bộ", delta="FAISS Ready")
 
-            st.write("---")
-            col_chart, col_table = st.columns([1, 1])
+                st.write("---")
+                col_chart, col_table = st.columns([1, 1])
 
-            with col_chart:
-                st.write("**Tỷ lệ phân bổ tài liệu theo Nhãn chính (Tags)**")
-                if "tags" in df.columns:
-                    df["main_tag"] = df["tags"].apply(
-                        lambda x: (
-                            x.split(",")[0].strip() if isinstance(x, str) else "General"
+                with col_chart:
+                    st.write("**Tỷ lệ phân bổ tài liệu theo Nhãn chính (Tags)**")
+                    if "tags" in df.columns:
+                        df["main_tag"] = df["tags"].apply(
+                            lambda x: (
+                                x.split(",")[0].strip() if isinstance(x, str) else "General"
+                            )
                         )
-                    )
-                    fig = px.pie(
-                        df,
-                        names="main_tag",
-                        hole=0.4,
-                        color_discrete_sequence=px.colors.qualitative.Safe,
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+                        fig = px.pie(
+                            df,
+                            names="main_tag",
+                            hole=0.4,
+                            color_discrete_sequence=px.colors.qualitative.Safe,
+                        )
+                        fig.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=300)
+                        st.plotly_chart(fig, use_container_width=True)
 
-            with col_table:
-                st.write("**Danh sách văn bản mới cập nhật**")
-                display_cols = [
-                    c
-                    for c in ["title", "tags", "author", "updatetime"]
-                    if c in df.columns
-                ]
-                st.dataframe(df[display_cols].tail(5), use_container_width=True)
-                if st.button("Xem cấu trúc JSON thô (MongoDB BSON)"):
-                    st.json(data)
+                with col_table:
+                    st.write("**Danh sách văn bản mới cập nhật**")
+                    display_cols = [
+                        c
+                        for c in ["title", "tags", "author", "updatetime"]
+                        if c in df.columns
+                    ]
+                    st.dataframe(df[display_cols].tail(5), use_container_width=True, hide_index=True)
+                    if st.button("Xem cấu trúc JSON thô (MongoDB BSON)"):
+                        st.json(data)
+            else:
+                st.info("Cơ sở dữ liệu MongoDB hiện đang trống. Pipeline đang chờ nạp dataset hoặc thêm thủ công.")
         else:
-            st.info("Cơ sở dữ liệu MongoDB hiện đang trống.")
+            st.error(f"Backend phản hồi mã lỗi: {resp.status_code}")
     except:
         st.error(
-            "Backend offline. Vui lòng kích hoạt API Server để hiển thị biểu đồ phân tích."
+            "Backend offline. Vui lòng kích hoạt API Server để hiển thị biểu đồ phân tích thực tế."
         )
 
 # ==========================================
-# TAB 3: ADD DOCUMENT
+# TAB 3: ADD DOCUMENT (GỌI API POST ĐỒNG BỘ)
 # ==========================================
 with tab3:
     st.subheader("Thêm Tài liệu Văn bản & Kích hoạt Vector Embedding")
@@ -326,19 +399,22 @@ with tab3:
                     "content": summary,
                 }
                 try:
+                    # GỌI API BACKEND: Đẩy bài viết mới lên MongoDB và tự động sinh Vector đưa vào FAISS
                     res = requests.post(f"{API_BASE}/documents", json=payload)
                     if res.status_code in [200, 201]:
                         st.balloons()
                         st.success(
                             f"Đã lưu thành công bài báo: '{title}'. Pipeline đã hoàn thành trích xuất Vector Embedding!"
                         )
+                        time.sleep(1)
+                        st.rerun()
                     else:
                         st.error(
                             f"Backend từ chối nạp dữ liệu (Mã lỗi: {res.status_code})"
                         )
                 except:
                     st.error(
-                        "Không thể kết nối đến API Endpoint. Vui lòng kiểm tra cổng mạng."
+                        "Không thể kết nối đến API Endpoint. Vui lòng kiểm tra cổng mạng của Backend Server."
                     )
             else:
                 st.warning("Vui lòng nhập đầy đủ các trường dữ liệu bắt buộc (*)")
