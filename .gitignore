@@ -11,6 +11,9 @@ env/
 data/processed/*
 data/embeddings/*
 !data/.gitkeep
+data/raw/*.zip
+data/raw/*150k*.csv
+data/raw/*full*.csv
 
 # FAISS
 faiss_index/*
@@ -27,6 +30,7 @@ faiss_index/*
 # OS
 .DS_Store
 Thumbs.db
+*.log
 
 # Notebooks
 notebooks/.ipynb_checkpoints/
