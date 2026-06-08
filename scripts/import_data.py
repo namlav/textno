@@ -94,13 +94,14 @@ def parse_args() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    import_dataset(
-        csv_path=args.csv_path,
-        title_col=args.title_col,
-        content_col=args.content_col,
-        category_col=args.category_col,
-        embedding_col=args.embedding_col,
-        batch_size=args.batch_size,
-        clear_collection=args.clear_collection,
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(current_dir, ".."))
+    csv_path = (
+        sys.argv[1]
+        if len(sys.argv) > 1
+        else os.path.join(project_root, "data/processed/cleaned.csv")
     )
+    # csv_path = ../data/processed/cleaned.csv"
+    import_dataset(
+        csv_path, category_col="tags"
+    )  # đọc cột "tags" có trong dataset thay vì "category"

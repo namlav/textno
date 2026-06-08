@@ -3,67 +3,44 @@ import re
 from typing import Iterable
 
 
-ENGLISH_STOPWORDS = {
-    "a", "about", "above", "after", "again", "against", "all", "am", "an",
-    "and", "any", "are", "as", "at", "be", "because", "been", "before",
-    "being", "below", "between", "both", "but", "by", "can", "did", "do",
-    "does", "doing", "don", "down", "during", "each", "few", "for", "from",
-    "further", "had", "has", "have", "having", "he", "her", "here", "hers",
-    "herself", "him", "himself", "his", "how", "i", "if", "in", "into",
-    "is", "it", "its", "itself", "just", "me", "more", "most", "my",
-    "myself", "no", "nor", "not", "now", "of", "off", "on", "once",
-    "only", "or", "other", "our", "ours", "ourselves", "out", "over",
-    "own", "same", "she", "should", "so", "some", "such", "than", "that",
-    "the", "their", "theirs", "them", "themselves", "then", "there",
-    "these", "they", "this", "those", "through", "to", "too", "under",
-    "until", "up", "very", "was", "we", "were", "what", "when", "where",
-    "which", "while", "who", "whom", "why", "will", "with", "you", "your",
-    "yours", "yourself", "yourselves",
-}
-
-VIETNAMESE_STOPWORDS = {
+STOPWORDS = {
     "và", "là", "của", "có", "được", "các", "với", "cho", "trong",
     "một", "người", "những", "khi", "như", "này", "đã", "sẽ", "số",
+    "về", "từ", "đến", "theo", "tại", "trên", "dưới", "sau", "trước",
+    "nhiều", "rằng", "thì", "mà", "để", "do", "vì", "nên", "cũng",
+    "ra", "vào", "lại", "hơn", "rất", "bị", "đang", "năm", "ngày",
+    "không", "nói", "biết", "hay", "nhưng", "đó", "đây", "nơi",
+    "the", "is", "and", "to", "of", "in", "that", "for", "it", "on",
+    "this", "with", "are", "was", "were", "been", "being",
 }
 
-STOPWORDS = ENGLISH_STOPWORDS | VIETNAMESE_STOPWORDS
 
-
-def clean_text(text: object, keep_digits: bool = False) -> str:
+def clean_text(text: str) -> str:
     if text is None:
         return ""
-
     text = html.unescape(str(text))
     text = re.sub(r"<[^>]+>", " ", text)
     text = re.sub(r"http\S+|www\S+|https\S+", " ", text)
     text = re.sub(r"[^\w\s]", " ", text, flags=re.UNICODE)
-    if not keep_digits:
-        text = re.sub(r"\d+", " ", text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
 
-def normalize_text(text: object, keep_digits: bool = False) -> str:
-    return clean_text(str(text).lower(), keep_digits=keep_digits)
+def normalize_text(text: str) -> str:
+    return clean_text(text).lower()
 
 
-def tokenize(text: object) -> list[str]:
-    normalized = normalize_text(text)
-    return normalized.split()
+def tokenize(text: str) -> list[str]:
+    return [word for word in normalize_text(text).split() if word]
 
 
-def remove_stopwords(text: object, stopwords: Iterable[str] | None = None) -> str:
-    words = str(text).split()
-    stopword_set = set(stopwords or STOPWORDS)
-    return " ".join(word for word in words if word not in stopword_set)
+def remove_stopword_tokens(tokens: Iterable[str]) -> list[str]:
+    return [word for word in tokens if word not in STOPWORDS and len(word) > 1]
 
 
-def preprocess(
-    text: object,
-    remove_stop_words: bool = True,
-    keep_digits: bool = False,
-) -> str:
-    text = normalize_text(text, keep_digits=keep_digits)
-    if remove_stop_words:
-        text = remove_stopwords(text)
-    return text
+def remove_stopwords(text: str) -> str:
+    return " ".join(remove_stopword_tokens(text.split()))
+
+
+def preprocess(text: str) -> str:
+    return " ".join(remove_stopword_tokens(tokenize(text)))

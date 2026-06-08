@@ -227,34 +227,15 @@ project-root/
 
 # 5. Dataset
 
-## 5.1 Dataset đề xuất
+## 5.1 Dataset sử dụng
 
-Có thể sử dụng:
-
-### Option 1
-
-News Category Dataset
-
-### Option 2
-
-BBC News Dataset
-
-### Option 3
-
-Amazon Product Reviews
-
-### Option 4
-
-Vietnamese News Dataset
+Vietnamese Online News Dataset
 
 ---
 
 ## 5.2 Nguồn dataset
 
 * Kaggle
-* HuggingFace Datasets
-* Crawl web
-* API
 
 ---
 
@@ -547,12 +528,10 @@ feature/*
 
 Feature branches.
 
-Ví dụ:
-
 ```text
-feature/backend-api
-feature/frontend-ui
-feature/preprocessing
+feature/backend-core
+Caotiendev (frontend)
+feature/data-nlp-books
 ```
 
 ---
@@ -608,6 +587,7 @@ pip install -r requirements.txt
 ## 13.4 Run backend
 
 ```bash
+cd backend
 uvicorn app.main:app --reload
 ```
 

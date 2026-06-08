@@ -36,7 +36,23 @@ def generate_and_store_embeddings(
 
 
 if __name__ == "__main__":
-    csv_path = sys.argv[1] if len(sys.argv) > 1 else "data/processed/books_clean.csv"
-    text_col = sys.argv[2] if len(sys.argv) > 2 else "embedding_text"
-    embed_dir = sys.argv[3] if len(sys.argv) > 3 else "data/embeddings"
+    # Lấy đường dẫn tuyệt đối đến thư mục chứa file script này (thư mục scripts)
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    # Định vị chính xác thư mục gốc của dự án (textno) bằng cách lùi lại 1 cấp
+    project_root = os.path.abspath(os.path.join(current_dir, ".."))
+
+    csv_path = (
+        sys.argv[1]
+        if len(sys.argv) > 1
+        else os.path.join(project_root, "data/processed/cleaned.csv")
+    )
+    text_col = sys.argv[2] if len(sys.argv) > 2 else "content"
+
+    # Định vị chính xác thư mục embeddings nằm trong project root
+    embed_dir = (
+        sys.argv[3]
+        if len(sys.argv) > 3
+        else os.path.join(project_root, "data/embeddings")
+    )
+
     generate_and_store_embeddings(csv_path, text_col, embed_dir)
