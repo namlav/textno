@@ -1,3 +1,10 @@
+# config.py - Quản lý cấu hình hệ thống qua biến môi trường (.env)
+#
+# Kỹ thuật:
+# - Dùng python-dotenv để đọc .env, tránh hardcode thông tin nhạy cảm
+# - Class Settings tập trung toàn bộ cấu hình: MongoDB URI, tên model embedding, đường dẫn FAISS index
+# - Tự động tính đường dẫn tuyệt đối FAISS_INDEX_PATH dựa vào vị trí file
+
 import os
 from dotenv import load_dotenv
 from pathlib import Path

@@ -1,3 +1,12 @@
+# preprocess_books.py - Tiền xử lý dataset Goodreads Books (books.csv)
+#
+# Pipeline:
+#   1. Đọc books.csv, chỉ lấy các cột cần thiết (RAW_COLUMNS)
+#   2. Làm sạch text: HTML unescape, xoá HTML tag, URL, ký tự đặc biệt
+#   3. Chuyển genres từ string list -> chuẩn hoá, category = genre đầu tiên
+#   4. Sinh embedding_text từ title + author + category + genres + description
+#   5. Export cleaned CSV + báo cáo thống kê (docs/report/data_report.md)
+
 import argparse
 import ast
 import os
@@ -19,6 +28,7 @@ RAW_COLUMNS = [
 
 
 def parse_list_cell(value: object) -> list[str]:
+    # Chuyển cell dạng list string (vd: "['Fiction', 'Drama']") thành list Python
     if pd.isna(value):
         return []
 
@@ -37,15 +47,18 @@ def parse_list_cell(value: object) -> list[str]:
 
 
 def normalize_list_cell(value: object) -> str:
+    # Chuyển list genres thành string cách nhau bằng dấu chấm phẩy
     return "; ".join(parse_list_cell(value))
 
 
 def primary_genre(value: object) -> str:
+    # Lấy genre đầu tiên làm category chính
     genres = parse_list_cell(value)
     return genres[0] if genres else "Unknown"
 
 
 def to_numeric(series: pd.Series) -> pd.Series:
+    # Chuyển cột string thành số (xoá dấu phẩy trong số)
     return pd.to_numeric(series.astype(str).str.replace(",", "", regex=False), errors="coerce")
 
 

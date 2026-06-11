@@ -1,3 +1,17 @@
+# import_data.py - Import dữ liệu CSV vào MongoDB + FAISS Vector Index
+#
+# Pipeline:
+#   1. Đọc CSV -> DataFrame
+#   2. Sinh vector embedding batch (SentenceTransformer)
+#   3. Thêm vector vào FAISS index (add_embeddings_batch)
+#   4. Lưu document (title, content, category, embedding_id) vào MongoDB
+#
+# Kỹ thuật:
+# - Xử lý batch với gc.collect() giữa các batch để tránh OOM với dataset lớn
+# - Tự động dò tìm cột category (category, tags, copic, ...) - xem _resolve_category_col()
+# - METADATA_COLUMNS: các cột phụ được đẩy vào MongoDB không cần qua embedding
+# - clean_value(): xử lý NaN/null từ pandas trước khi ghi MongoDB
+
 import argparse
 import gc
 import os
@@ -21,6 +35,7 @@ METADATA_COLUMNS = [
 
 
 def clean_value(value: object) -> object:
+    # Chuyển pd.NA / np.nan -> None (BSON compatible)
     if pd.isna(value):
         return None
     if hasattr(value, "item"):
@@ -32,6 +47,7 @@ CATEGORY_CANDIDATES = ["category", "tags", "copic", "topic", "categories", "tag"
 
 
 def _resolve_category_col(df: pd.DataFrame, category_col: str) -> str | None:
+    # Tự động tìm cột chứa category: ưu tiên tên chỉ định, fallback qua danh sách
     if category_col in df.columns:
         return category_col
     for column in CATEGORY_CANDIDATES:
@@ -58,6 +74,7 @@ def import_dataset(
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
 
+    # Tự động tạo embedding_text nếu chưa có (kết hợp title + content)
     if embedding_col not in df.columns:
         df[embedding_col] = df[title_col].astype(str) + " " + df[content_col].astype(str)
 
