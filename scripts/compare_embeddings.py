@@ -1,3 +1,13 @@
+# compare_embeddings.py - So sánh kết quả tìm kiếm giữa TF-IDF và BERT (SBERT)
+#
+# Kỹ thuật:
+# - TF-IDF: vectorizer sklearn với ngram_range=(1,2), max_features=50000
+# - BERT: SentenceTransformer với model đa ngôn ngữ
+# - Cosine Similarity: dùng sklearn.metrics.pairwise.cosine_similarity
+# - So sánh top_k kết quả cho mỗi query, hiển thị title để đánh giá trực quan
+#
+# Mục đích: chứng minh semantic search (BERT) hiểu ngữ nghĩa hơn keyword search (TF-IDF)
+
 import argparse
 
 import numpy as np

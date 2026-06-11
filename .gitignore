@@ -7,10 +7,12 @@ venv/
 env/
 
 # Data
-!data/raw/*
+data/raw/*
 data/processed/*
 data/embeddings/*
 !data/.gitkeep
+data/raw/*.zip
+data/raw/*.csv
 
 # FAISS
 faiss_index/*
@@ -27,6 +29,7 @@ faiss_index/*
 # OS
 .DS_Store
 Thumbs.db
+*.log
 
 # Notebooks
 notebooks/.ipynb_checkpoints/

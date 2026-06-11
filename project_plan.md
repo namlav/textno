@@ -87,7 +87,7 @@ Dùng để:
 Model đề xuất:
 
 ```python
-all-MiniLM-L6-v2
+paraphrase-multilingual-MiniLM-L12-v2
 ```
 
 Dùng để:
@@ -229,7 +229,7 @@ project-root/
 
 ## 5.1 Dataset sử dụng
 
-VNExpress Dataset
+Vietnamese Online News Dataset
 
 ---
 
@@ -325,7 +325,7 @@ Ví dụ:
 Model:
 
 ```python
-all-MiniLM-L6-v2
+paraphrase-multilingual-MiniLM-L12-v2
 ```
 
 ---
@@ -631,13 +631,8 @@ pandas
 
 # 15. Environment Variables
 
-## .env
+## Cấu hình biến môi trường kết nối với mongodb
 
-```env
-MONGODB_URI=mongodb://localhost:27017
-DATABASE_NAME=text_management_db
-COLLECTION_NAME=documents
-```
 
 ---
 
