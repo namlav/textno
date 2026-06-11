@@ -17,6 +17,6 @@ def generate_embedding(text: str) -> np.ndarray:
     return model.encode(text, normalize_embeddings=True)
 
 
-def generate_embeddings_batch(texts: list[str]) -> np.ndarray:
+def generate_embeddings_batch(texts: list[str], batch_size: int = 32) -> np.ndarray:
     model = get_model()
-    return model.encode(texts, normalize_embeddings=True, show_progress_bar=True)
+    return model.encode(texts, batch_size=batch_size, normalize_embeddings=True, show_progress_bar=True)
