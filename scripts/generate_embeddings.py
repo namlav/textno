@@ -11,10 +11,13 @@ from app.services.search import rebuild_index
 
 def generate_and_store_embeddings(
     csv_path: str,
-    text_column: str = "content",
-    embed_dir: str = "../data/embeddings",
+    text_column: str = "embedding_text",
+    embed_dir: str = "data/embeddings",
 ):
     df = pd.read_csv(csv_path)
+    if text_column not in df.columns:
+        raise ValueError(f"Column '{text_column}' not found in {csv_path}")
+
     texts = df[text_column].astype(str).tolist()
     print(f"Generating embeddings for {len(texts)} documents...")
 
@@ -22,6 +25,9 @@ def generate_and_store_embeddings(
     os.makedirs(embed_dir, exist_ok=True)
 
     np.save(os.path.join(embed_dir, "embeddings.npy"), embeddings)
+    if "source_id" in df.columns:
+        df[["source_id"]].to_csv(os.path.join(embed_dir, "embedding_ids.csv"), index=False)
+
     print(f"Embeddings saved to {embed_dir}/embeddings.npy")
     print(f"Shape: {embeddings.shape}")
 

@@ -229,7 +229,7 @@ project-root/
 
 ## 5.1 Dataset sử dụng
 
-VNExpress Dataset
+Vietnamese Online News Dataset
 
 ---
 
