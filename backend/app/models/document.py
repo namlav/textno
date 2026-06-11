@@ -1,3 +1,11 @@
+# document.py - Định nghĩa cấu trúc dữ liệu (Pydantic models)
+#
+# Kỹ thuật:
+# - Dùng Pydantic BaseModel để validate dữ liệu đầu vào/đầu ra API
+# - DocumentCreate: model cho request tạo mới document
+# - DocumentResponse: model cho response, bao gồm _id (MongoDB ObjectId) thời gian tạo
+# - SearchResult: model riêng cho kết quả tìm kiếm kèm điểm số similarity
+
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime

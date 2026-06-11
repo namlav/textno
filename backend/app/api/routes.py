@@ -1,3 +1,17 @@
+# routes.py - Các API endpoints cho hệ thống
+#
+# RESTful API:
+#   POST /documents     - Tạo document mới, tự động sinh embedding vector và lưu vào FAISS
+#   GET  /documents     - Lấy danh sách tất cả documents từ MongoDB
+#   GET  /documents/:id - Lấy chi tiết một document theo ObjectId
+#   DELETE /documents/:id - Xoá document
+#   POST /search        - Tìm kiếm ngữ nghĩa (semantic search) dùng vector similarity
+#
+# Kỹ thuật:
+# - Mỗi document khi tạo đều chạy pipeline: nhúng văn bản -> vector -> FAISS index
+# - Tìm kiếm dùng FAISS (Inner Product ~ Cosine Similarity) thay vì MongoDB text search
+# - Kết quả tìm được từ FAISS mapping ngược về MongoDB qua embedding_id
+
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
 from bson import ObjectId
@@ -16,9 +30,12 @@ def health_check():
 
 @router.post("/documents", response_model=DocumentResponse)
 def create_document(doc: DocumentCreate):
+    # Bước 1: Tạo vector embedding cho nội dung document
     embedding = generate_embedding(f"{doc.title} {doc.content}")
+    # Bước 2: Lưu vector vào FAISS index và lấy embedding_id
     embedding_id = add_embedding(embedding)
 
+    # Bước 3: Lưu document vào MongoDB kèm embedding_id để mapping sau này
     doc_dict = doc.model_dump()
     doc_dict["embedding_id"] = embedding_id
     doc_dict["created_at"] = datetime.utcnow()
@@ -67,12 +84,14 @@ def delete_document(doc_id: str):
 
 @router.post("/search", response_model=list[SearchResult])
 def search_documents(query: str, top_k: int = 5):
+    # Bước 1: Dùng FAISS tìm top_k vector gần nhất với query vector
     collection = get_collection()
     results = faiss_search(query, top_k)
 
     if not results:
         return []
 
+    # Bước 2: Mapping embedding_id -> document trong MongoDB
     search_results = []
     for embedding_id, score in results:
         doc = collection.find_one({"embedding_id": embedding_id})

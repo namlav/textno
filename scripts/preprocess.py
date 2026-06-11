@@ -1,3 +1,15 @@
+# preprocess.py - Tiền xử lý dataset VnExpress Articles (.json hoặc .csv)
+#
+# Pipeline:
+#   Input (JSON files / CSV) -> load_articles() -> build_raw_dataset() -> build_processed_dataset()
+#
+# Kỹ thuật:
+# - load_json_articles(): đọc JSON files (mỗi file = một category), lấy tên file làm category
+# - Xử lý JSON lỗi cú pháp (double braces {{...}}): tự động sửa thành array
+# - build_raw_dataset(): lọc title/content rỗng, xoá trùng lặp, chuẩn hoá khoảng trắng
+# - build_processed_dataset(): thêm cột category & source từ source_df, sinh clean_title,
+#   clean_content, tokens, text_for_embedding
+
 import argparse
 import json
 import os
@@ -44,7 +56,7 @@ def load_json_articles(input_path: Path) -> pd.DataFrame:
                 raise
 
         articles = payload if isinstance(payload, list) else payload.get("data", [])
-        category = json_file.stem
+        category = json_file.stem  # Tên file = tên category (vd: "the-gioi.json" -> "the-gioi")
 
         for article in articles:
             row = {column: compact_whitespace(article.get(column, "")) for column in ARTICLE_COLUMNS}
@@ -73,7 +85,7 @@ def build_raw_dataset(df: pd.DataFrame) -> pd.DataFrame:
     df["title"] = df["title"].apply(compact_whitespace)
     df["content"] = df["content"].apply(compact_whitespace)
     df["tags"] = df["tags"].apply(compact_whitespace)
-    df = df[df["title"].ne("") & df["content"].ne("")]
+    df = df[df["title"].ne("") & df["content"].ne("")]  # Bỏ dòng thiếu title/content
     df = df.drop_duplicates(subset=["id"], keep="first")
     df = df.drop_duplicates(subset=["title", "content"], keep="first")
     return df[ARTICLE_COLUMNS]

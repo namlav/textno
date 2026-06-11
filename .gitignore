@@ -12,8 +12,7 @@ data/processed/*
 data/embeddings/*
 !data/.gitkeep
 data/raw/*.zip
-data/raw/*150k*.csv
-data/raw/*full*.csv
+data/raw/*.csv
 
 # FAISS
 faiss_index/*

@@ -1,3 +1,15 @@
+# app.py - Frontend Streamlit: Giao diện Quản trị & Tìm kiếm Tin tức AI
+#
+# Kiến trúc:
+# - 3 tabs: Intelligent Search (semantic), Document Analytics (thống kê), Add Document (thêm mới)
+# - Gọi REST API backend FastAPI qua requests (http://localhost:8000)
+# - Plotly pie chart cho phân bổ category/tags
+#
+# Kỹ thuật frontend:
+# - Session state: lưu query_input giữa các lần tương tác
+# - Custom CSS: giao diện tone sáng, màu xanh ngọc (teal) chủ đạo
+# - Streaming layout: st.columns, st.container, st.expander
+
 import streamlit as st
 import requests
 import pandas as pd
@@ -128,7 +140,7 @@ tab1, tab2, tab3 = st.tabs(
 )
 
 # ==========================================
-# TAB 1: INTELLIGENT SEARCH
+# TAB 1: INTELLIGENT SEARCH - Tìm kiếm ngữ nghĩa bằng FAISS + SBERT
 # ==========================================
 with tab1:
     st.subheader("Trải nghiệm Sức mạnh Tìm kiếm Ngữ nghĩa AI")
@@ -230,7 +242,7 @@ with tab1:
             st.warning("Vui lòng nhập nội dung cần tìm kiếm!")
 
 # ==========================================
-# TAB 2: DOCUMENT ANALYTICS
+# TAB 2: DOCUMENT ANALYTICS - Thống kê dữ liệu MongoDB
 # ==========================================
 with tab2:
     st.subheader("Hệ thống Quản trị & Phân tích kho dữ liệu MongoDB")
@@ -287,7 +299,7 @@ with tab2:
         )
 
 # ==========================================
-# TAB 3: ADD DOCUMENT
+# TAB 3: ADD DOCUMENT - Thêm tài liệu mới
 # ==========================================
 with tab3:
     st.subheader("Thêm Tài liệu Văn bản & Kích hoạt Vector Embedding")

@@ -1,3 +1,11 @@
+# generate_embeddings.py - Sinh vector embedding riêng lẻ từ CSV và tái tạo FAISS index
+#
+# Kỹ thuật:
+# - Đọc CSV, lấy cột text (mặc định: embedding_text / content)
+# - Sinh toàn bộ vector embedding batch bằng SentenceTransformer
+# - Lưu file .npy (numpy) và rebuild FAISS index từ đầu
+# - Khác với import_data.py: script này KHÔNG ghi MongoDB, chỉ xử lý vector
+
 import sys
 import os
 

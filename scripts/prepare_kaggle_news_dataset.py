@@ -1,3 +1,15 @@
+# prepare_kaggle_news_dataset.py - Tải & chuyển đổi Kaggle Vietnamese Online News Dataset
+#
+# Kỹ thuật:
+# - Tải file ZIP từ Kaggle API (cần Kaggle API key), giải nén JSON 150K+ bài báo
+# - Streaming JSON parser (iter_json_array_from_zip): đọc file JSON khổng lồ mà không
+#   cần load toàn bộ vào RAM, xử lý từng article một
+# - build_balanced_sample(): lấy mẫu cân bằng (stratified sampling) theo chủ đề,
+#   dùng Reservoir Sampling để đảm bảo phân phối đều ngay cả khi không biết trước
+#   tổng số article mỗi topic
+# - CANONICAL_TOPICS: map các tên chủ đề khác nhau (viết hoa/viết thường/từ đồng nghĩa)
+#   về một tên chuẩn
+
 import argparse
 import csv
 import io
@@ -81,6 +93,8 @@ def download_dataset(zip_path: Path) -> None:
 
 
 def iter_json_array_from_zip(zip_path: Path, member: str):
+    # Streaming JSON parser: đọc từng object từ JSON array trong ZIP
+    # Không load toàn bộ file JSON vào RAM -> xử lý được dataset 150K+ articles
     decoder = json.JSONDecoder()
     with zipfile.ZipFile(zip_path) as archive, archive.open(member) as raw:
         text = io.TextIOWrapper(raw, encoding="utf-8")
@@ -147,6 +161,7 @@ def write_csv(path: Path, rows: list[dict[str, object]]) -> None:
 
 
 def build_balanced_sample(zip_path: Path, output_path: Path, sample_size: int, seed: int) -> None:
+    # Reservoir Sampling theo từng topic: đảm bảo mỗi topic có số lượng bằng nhau
     random.seed(seed)
     topics = sorted(set(CANONICAL_TOPICS.values()))
     per_topic = sample_size // len(topics)
@@ -191,6 +206,7 @@ def build_balanced_sample(zip_path: Path, output_path: Path, sample_size: int, s
 
 
 def build_full_dataset(zip_path: Path, output_path: Path) -> None:
+    # Chuyển đổi toàn bộ dataset (150K+ articles) sang CSV
     output_path.parent.mkdir(parents=True, exist_ok=True)
     total = 0
     written = 0
