@@ -214,7 +214,7 @@ with tab1:
                                 <div class="news-card">
                                     <span class="category-tag">{first_tag}</span>
                                     <h4 style="margin: 8px 0 4px 0; color:#008080;">{r['title']}</h4>
-                                    <p class="meta-text">👤 Tác giả: {r.get('author', 'Ký giả')} | 📅 Cập nhật: {r.get('updatetime', 'N/A')} | 📰 Nguồn: {r.get('publication', 'VNExpress')}</p>
+                                    <p class="meta-text">👤 Tác giả: {r.get('author', 'Ký giả')} | 📅 Cập nhật: {r.get('created_at', 'N/A')} | 📰 Nguồn: {r.get('publication', 'VNExpress')}</p>
                                 </div>
                                 """,
                                     unsafe_allow_html=True,
