@@ -1,356 +1,534 @@
-# app.py - Frontend Streamlit: Giao diện Quản trị & Tìm kiếm Tin tức AI
-#
-# Kiến trúc:
-# - 3 tabs: Intelligent Search (semantic), Document Analytics (thống kê), Add Document (thêm mới)
-# - Gọi REST API backend FastAPI qua requests (http://localhost:8000)
-# - Plotly pie chart cho phân bổ category/tags
-#
-# Kỹ thuật frontend:
-# - Session state: lưu query_input giữa các lần tương tác
-# - Custom CSS: giao diện tone sáng, màu xanh ngọc (teal) chủ đạo
-# - Streaming layout: st.columns, st.container, st.expander
-
-import streamlit as st
-import requests
-import pandas as pd
+import html
 import time
-import plotly.express as px
 
-# --- CẤU HÌNH HỆ THỐNG ---
+import pandas as pd
+import plotly.express as px
+import requests
+import streamlit as st
+
+
 API_BASE = "http://localhost:8000"
 
 st.set_page_config(
-    page_title="Text Document Management System - VNExpress AI Search",
-    page_icon="📄",
+    page_title="Textno - Quản lý tài liệu",
+    page_icon=None,
     layout="wide",
+    initial_sidebar_state="expanded",
 )
 
-# --- CUSTOM CSS (Giao diện tone sáng, màu chủ đạo Xanh ngọc bích thanh lịch) ---
 st.markdown(
     """
     <style>
-    .main { background-color: #f4f6f9; }
-    .stButton>button { width: 100%; border-radius: 20px; }
-    .news-card {
-        padding: 20px;
-        border-radius: 12px;
-        background-color: white;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        margin-bottom: 15px;
-        border-left: 6px solid #008080;
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Libre+Caslon+Text:wght@400;700&display=swap');
+
+    :root {
+        --ink: #18211d;
+        --muted: #66716b;
+        --line: #dce3df;
+        --canvas: #f3f5f2;
+        --panel: #ffffff;
+        --brand: #174f3f;
+        --brand-dark: #0e3c2e;
+        --brand-soft: #e7f0eb;
     }
-    .category-tag {
-        background-color: #e0f2f1;
-        color: #004d40;
-        padding: 3px 12px;
-        border-radius: 20px;
-        font-size: 11px;
-        font-weight: bold;
+
+    html, body, [class*="css"], [data-testid="stAppViewContainer"] {
+        font-family: "DM Sans", sans-serif;
+        color: var(--ink);
+    }
+    [data-testid="stAppViewContainer"] { background: var(--canvas); }
+    [data-testid="stHeader"] { background: transparent; }
+    [data-testid="stMainBlockContainer"] {
+        max-width: 1280px;
+        padding: 2.8rem 3rem 4rem;
+    }
+    [data-testid="stSidebar"] {
+        background: #12382e;
+        border-right: 0;
+    }
+    [data-testid="stSidebar"] > div:first-child { padding: 1.2rem 1rem; }
+    [data-testid="stSidebar"] * { color: #eaf0ed; }
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p { color: #aac1b7; }
+    [data-testid="stSidebar"] hr { border-color: rgba(255,255,255,.13); }
+
+    .brand-wrap {
+        padding: .4rem .55rem 1.35rem;
+        border-bottom: 1px solid rgba(255,255,255,.13);
+        margin-bottom: 1rem;
+    }
+    .brand-name {
+        font-family: "Libre Caslon Text", serif;
+        font-size: 1.65rem;
+        letter-spacing: -.04em;
+        color: #fff;
+    }
+    .brand-subtitle { margin-top: .3rem; font-size: .72rem; color: #aac1b7; }
+    .system-card {
+        margin-top: 2rem;
+        padding: .9rem;
+        border: 1px solid rgba(255,255,255,.14);
+        border-radius: .75rem;
+        background: rgba(255,255,255,.05);
+        font-size: .72rem;
+        line-height: 1.7;
+        color: #c9d8d1;
+    }
+    .system-online { color: #8ad0ad; font-weight: 700; }
+
+    [data-testid="stSidebar"] [role="radiogroup"] { gap: .35rem; }
+    [data-testid="stSidebar"] [role="radiogroup"] label {
+        padding: .68rem .75rem;
+        border-radius: .65rem;
+        transition: background .2s ease;
+    }
+    [data-testid="stSidebar"] [role="radiogroup"] label:hover {
+        background: rgba(255,255,255,.08);
+    }
+    [data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) {
+        background: rgba(255,255,255,.12);
+    }
+
+    .eyebrow {
+        color: var(--brand);
+        font-size: .68rem;
+        font-weight: 800;
+        letter-spacing: .12em;
         text-transform: uppercase;
     }
-    .meta-text { color: #666; font-size: 12px; margin-top: 5px; }
-    .latency-text { color: #004d40; font-style: italic; font-size: 12px; }
+    .page-title {
+        max-width: 850px;
+        margin: .45rem 0 .65rem;
+        font-family: "Libre Caslon Text", serif;
+        font-size: clamp(2.35rem, 5vw, 3.65rem);
+        font-weight: 400;
+        line-height: 1.12;
+        letter-spacing: -.055em;
+        color: var(--ink);
+    }
+    .page-lead {
+        max-width: 720px;
+        margin-bottom: 1.6rem;
+        color: var(--muted);
+        font-size: .92rem;
+        line-height: 1.7;
+    }
+    .section-title {
+        margin: 1.7rem 0 .75rem;
+        font-family: "Libre Caslon Text", serif;
+        font-size: 1.45rem;
+        font-weight: 400;
+        letter-spacing: -.035em;
+    }
+    .results-meta {
+        margin: -.4rem 0 .8rem;
+        color: var(--muted);
+        font-size: .72rem;
+    }
+
+    div[data-testid="stTextInput"] input,
+    div[data-testid="stTextArea"] textarea,
+    div[data-testid="stDateInput"] input {
+        border-color: var(--line);
+        border-radius: .65rem;
+        background: #fbfcfb;
+    }
+    div[data-testid="stTextInput"] input:focus,
+    div[data-testid="stTextArea"] textarea:focus {
+        border-color: var(--brand);
+        box-shadow: 0 0 0 1px var(--brand);
+    }
+    div[data-testid="stForm"] {
+        padding: 1.4rem;
+        border: 1px solid var(--line);
+        border-radius: .95rem;
+        background: var(--panel);
+        box-shadow: 0 8px 22px rgba(28,49,40,.04);
+    }
+    div[data-testid="stForm"] label,
+    div[data-testid="stTextInput"] label,
+    div[data-testid="stSelectSlider"] label {
+        color: #3a4740 !important;
+        font-size: .75rem;
+        font-weight: 700;
+    }
+    .stButton > button,
+    [data-testid="stFormSubmitButton"] > button {
+        min-height: 2.65rem;
+        border: 1px solid var(--line);
+        border-radius: .65rem;
+        color: var(--ink);
+        background: #fff;
+        font-weight: 700;
+        transition: all .18s ease;
+    }
+    .stButton > button:hover,
+    [data-testid="stFormSubmitButton"] > button:hover {
+        border-color: var(--brand);
+        color: var(--brand);
+    }
+    .stButton > button[kind="primary"],
+    [data-testid="stFormSubmitButton"] > button[kind="primary"] {
+        border-color: var(--brand);
+        color: #fff;
+        background: var(--brand);
+    }
+    .stButton > button[kind="primary"]:hover,
+    [data-testid="stFormSubmitButton"] > button[kind="primary"]:hover {
+        border-color: var(--brand-dark);
+        color: #fff;
+        background: var(--brand-dark);
+    }
+    div[data-testid="stMetric"] {
+        padding: 1.1rem;
+        border: 1px solid var(--line);
+        border-radius: .85rem;
+        background: var(--panel);
+        box-shadow: 0 8px 22px rgba(28,49,40,.04);
+    }
+    div[data-testid="stMetric"] label { color: var(--muted); font-size: .72rem; }
+    div[data-testid="stMetricValue"] {
+        font-family: "Libre Caslon Text", serif;
+        font-size: 1.7rem;
+    }
+    div[data-testid="stDataFrame"] {
+        border: 1px solid var(--line);
+        border-radius: .75rem;
+        overflow: hidden;
+    }
+    .result-card {
+        min-height: 238px;
+        padding: 1.15rem;
+        border: 1px solid var(--line);
+        border-radius: .9rem;
+        background: var(--panel);
+        box-shadow: 0 8px 22px rgba(28,49,40,.04);
+    }
+    .result-tag {
+        color: var(--brand);
+        font-size: .62rem;
+        font-weight: 800;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+    }
+    .result-card h3 {
+        margin: .65rem 0 .55rem;
+        font-family: "Libre Caslon Text", serif;
+        font-size: 1.05rem;
+        line-height: 1.35;
+        letter-spacing: -.025em;
+    }
+    .result-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: .72rem;
+        line-height: 1.6;
+    }
+    .result-meta {
+        margin-top: 1rem;
+        padding-top: .7rem;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: .65rem;
+    }
+    .score { color: var(--brand); font-weight: 800; }
+    .pipeline-note {
+        margin: 1rem 0;
+        padding: .75rem .9rem;
+        border-left: 3px solid #d89a45;
+        color: #66502f;
+        background: #fff8e9;
+        font-size: .72rem;
+    }
+    [data-testid="stExpander"] {
+        border-color: var(--line);
+        border-radius: .7rem;
+        background: #fff;
+    }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# --- SIDEBAR: THÔNG TIN HỆ THỐNG CHUẨN ENTERPRISE ---
+
+def page_header(eyebrow: str, title: str, lead: str) -> None:
+    st.markdown(
+        f"""
+        <div class="eyebrow">{eyebrow}</div>
+        <div class="page-title">{title}</div>
+        <div class="page-lead">{lead}</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def safe(value, fallback: str = "") -> str:
+    return html.escape(str(value if value not in (None, "") else fallback))
+
+
 with st.sidebar:
     st.markdown(
         """
-        <div style="text-align: center; margin-bottom: 20px;">
-            <img src="https://cdn-icons-png.flaticon.com/512/2965/2965333.png" width="70">
-            <h2 style="color: #008080; margin-top: 10px; font-size: 22px; font-weight: bold;">VNExpress AI Portal</h2>
-            <p style="font-size: 12px; color: #666; font-style: italic;">Hệ thống Quản trị & Biên tập Tin tức</p>
+        <div class="brand-wrap">
+            <div class="brand-name">textno</div>
+            <div class="brand-subtitle">Document Intelligence Workspace</div>
         </div>
-        <hr style="margin: 10px 0;">
-    """,
+        """,
         unsafe_allow_html=True,
     )
-
-    st.info(
-        "🧠 **AI Powered System**\n\nHệ quản trị dữ liệu văn bản phi cấu trúc và tìm kiếm ngữ nghĩa nâng cao trên nền tảng không gian Vector."
+    page = st.radio(
+        "Điều hướng",
+        ["Tìm kiếm tài liệu", "Phân tích dữ liệu", "Thêm tài liệu"],
+        label_visibility="collapsed",
     )
-
-    st.markdown(
-        "<p style='font-weight: bold; color: #333; margin-top: 15px; margin-bottom: 5px; font-size: 13px;'>🌐 PHÂN QUYỀN HỆ THỐNG (ROLES)</p>",
-        unsafe_allow_html=True,
-    )
-
     st.markdown(
         """
-        <style>
-        .role-box {
-            display: flex;
-            align-items: center;
-            padding: 8px 12px;
-            background-color: #ffffff;
-            border-radius: 6px;
-            margin-bottom: 8px;
-            border: 1px solid #eef2f5;
-        }
-        .role-dot { width: 8px; height: 8px; border-radius: 50%; background-color: #008080; margin-right: 10px; }
-        .role-title { font-size: 12px; font-weight: 500; color: #444; }
-        .infra-tag { font-size: 11px; color: #555; background-color: #eaeded; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
-        </style>
-    """,
+        <div class="system-card">
+            <b>Trạng thái hệ thống</b><br>
+            <span class="system-online">● Hoạt động ổn định</span><br>
+            MongoDB · FAISS Index<br>
+            Cổng dữ liệu: Online
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
-    roles = [
-        "System Administrator (Root)",
-        "Data Engineer / NLP Specialist",
-        "Frontend Developer (UI/UX)",
-    ]
-    for r in roles:
-        st.markdown(
-            f'<div class="role-box"><div class="role-dot"></div><div class="role-title">{r}</div></div>',
-            unsafe_allow_html=True,
-        )
 
-    st.markdown(
-        "<br><p style='font-weight: bold; color: #333; margin-bottom: 5px; font-size: 13px;'>🛠️ THÔNG SỐ HẠ TẦNG (INFRA)</p>",
-        unsafe_allow_html=True,
+if page == "Tìm kiếm tài liệu":
+    page_header(
+        "Tìm kiếm tài liệu",
+        "Tìm đúng nội dung,<br>không chỉ đúng từ khóa.",
+        "Khám phá bài viết trong kho dữ liệu dựa trên chủ đề và ngữ cảnh. "
+        "Kết quả được xếp hạng theo mức độ liên quan.",
     )
-    st.markdown(
-        "• Embedding: <span class='infra-tag'>all-MiniLM-L6-v2</span>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        "• NoSQL CSDL: <span class='infra-tag'>MongoDB Atlas</span>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        "• Vector DB: <span class='infra-tag'>FAISS CPU Index</span>",
-        unsafe_allow_html=True,
-    )
-
-    st.markdown("---")
-    st.success("Cổng truyền dữ liệu: **Online**")
-
-# --- APP HEADER ---
-st.title("📄 Text Document Management System")
-st.write(
-    "Hệ quản trị dữ liệu văn bản phi cấu trúc kết hợp Tìm kiếm ngữ nghĩa (Semantic Search)"
-)
-
-tab1, tab2, tab3 = st.tabs(
-    ["🔍 Intelligent Search", "📊 Document Analytics", "➕ Add Document"]
-)
-
-# ==========================================
-# TAB 1: INTELLIGENT SEARCH - Tìm kiếm ngữ nghĩa bằng FAISS + SBERT
-# ==========================================
-with tab1:
-    st.subheader("Trải nghiệm Sức mạnh Tìm kiếm Ngữ nghĩa AI")
-
-    st.write("💡 **Gợi ý kịch bản Demo nhanh:**")
-    cols = st.columns(4)
-    suggestions = [
-        "Ứng dụng trí tuệ nhân tạo trong học tập",
-        "Biến động kinh tế thị trường và giá vàng",
-        "Chiến thuật của đội tuyển bóng đá quốc gia",
-        "Khám phá loài sinh vật mới dưới biển sâu",
-    ]
 
     if "query_input" not in st.session_state:
         st.session_state.query_input = ""
 
-    for i, suggestion in enumerate(suggestions):
-        if cols[i].button(suggestion):
-            st.session_state.query_input = suggestion
-
-    query = st.text_input(
-        "Nhập ý tưởng hoặc nhu cầu tìm kiếm tin tức của bạn:",
-        value=st.session_state.query_input,
-        placeholder="Ví dụ: Xu hướng phát triển công nghệ giáo dục thông minh hiện nay...",
-    )
-
-    col_search, col_k = st.columns([3, 1])
-    with col_k:
+    query_col, count_col = st.columns([4, 1])
+    with query_col:
+        query = st.text_input(
+            "Nội dung tìm kiếm",
+            value=st.session_state.query_input,
+            placeholder="Ví dụ: Ứng dụng công nghệ trong giáo dục",
+        )
+    with count_col:
         top_k = st.select_slider(
-            "Số lượng kết quả hiển thị", options=[1, 2, 3, 5], value=3
+            "Số kết quả",
+            options=[1, 2, 3, 5],
+            value=3,
         )
 
-    if st.button("Tìm kiếm 🔍", type="primary"):
-        if query:
+    search_clicked = st.button("Tìm kiếm", type="primary", width="stretch")
+
+    st.markdown('<div class="section-title">Gợi ý chủ đề</div>', unsafe_allow_html=True)
+    suggestions = [
+        "Ứng dụng công nghệ trong giáo dục",
+        "Biến động kinh tế và giá vàng",
+        "Đội tuyển bóng đá quốc gia",
+        "Khám phá sinh vật dưới biển sâu",
+    ]
+    suggestion_cols = st.columns(4)
+    for index, suggestion in enumerate(suggestions):
+        if suggestion_cols[index].button(suggestion, width="stretch"):
+            st.session_state.query_input = suggestion
+            st.rerun()
+
+    if search_clicked:
+        if not query:
+            st.warning("Vui lòng nhập nội dung cần tìm kiếm.")
+        else:
             start_time = time.time()
             try:
-                resp = requests.post(
-                    f"{API_BASE}/search", params={"query": query, "top_k": top_k}
+                response = requests.post(
+                    f"{API_BASE}/search",
+                    params={"query": query, "top_k": top_k},
                 )
-                if resp.status_code == 200:
-                    results = resp.json()
+                if response.status_code == 200:
+                    results = response.json()
                     latency = round(time.time() - start_time, 3)
-
                     st.markdown(
-                        f"⏱️ <span class='latency-text'>AI hoàn thành quét không gian vector trong {latency} giây</span>",
+                        '<div class="section-title">Kết quả nổi bật</div>'
+                        f'<div class="results-meta">{len(results)} tài liệu · {latency} giây</div>',
                         unsafe_allow_html=True,
                     )
-                    col_left, col_right = st.columns(2)
 
-                    with col_left:
-                        st.markdown("### 🔍 Keyword Match (TF-IDF)")
-                        st.caption("Tìm kiếm dựa trên từ khóa trùng khớp chính xác")
-                        st.warning(
-                            "Hạn chế: Tìm kiếm truyền thống dễ bỏ sót tài liệu nếu không gõ trúng chuẩn xác từng ký tự từ khóa gốc."
+                    result_cols = st.columns(min(len(results), 3) or 1)
+                    for index, result in enumerate(results):
+                        raw_tags = result.get("tags") or result.get("category") or "Chưa phân loại"
+                        first_tag = (
+                            raw_tags.split(",")[0]
+                            if isinstance(raw_tags, str)
+                            else "Chưa phân loại"
                         )
-
-                    with col_right:
-                        st.markdown("### 🧠 Semantic Match (SBERT + FAISS)")
-                        st.caption("Tìm kiếm dựa trên hiểu biết ngữ nghĩa cốt truyện")
-                        for r in results:
-                            with st.container():
-                                raw_tags = r.get("tags", "General")
-                                first_tag = (
-                                    raw_tags.split(",")[0]
-                                    if isinstance(raw_tags, str)
-                                    else "General"
-                                )
-
-                                st.markdown(
-                                    f"""
-                                <div class="news-card">
-                                    <span class="category-tag">{first_tag}</span>
-                                    <h4 style="margin: 8px 0 4px 0; color:#008080;">{r['title']}</h4>
-                                    <p class="meta-text">👤 Tác giả: {r.get('author', 'Ký giả')} | 📅 Cập nhật: {r.get('updatetime', 'N/A')} | 📰 Nguồn: {r.get('publication', 'VNExpress')}</p>
-                                </div>
+                        score = max(0.0, min(float(result.get("score", 0.0)), 1.0))
+                        with result_cols[index % len(result_cols)]:
+                            st.markdown(
+                                f"""
+                                <article class="result-card">
+                                    <span class="result-tag">{safe(first_tag, "Chưa phân loại")}</span>
+                                    <h3>{safe(result.get("title"), "Tài liệu chưa có tiêu đề")}</h3>
+                                    <p>{safe(result.get("publication"), "VNExpress")} ·
+                                    {safe(result.get("author"), "Ký giả")}</p>
+                                    <div class="result-meta">
+                                        {safe(result.get("created_at"), "Chưa rõ ngày")}
+                                        · <span class="score">{round(score * 100)}% liên quan</span>
+                                    </div>
+                                </article>
                                 """,
-                                    unsafe_allow_html=True,
-                                )
-                                with st.expander(
-                                    "Đọc toàn bộ nội dung & Kiểm tra Score"
-                                ):
-                                    st.write(r["content"])
-                                    if r.get("wordcount"):
-                                        st.caption(
-                                            f"📝 Độ dài văn bản: {r['wordcount']} từ"
-                                        )
-                                    score = r.get("score", 0.0)
-                                    st.progress(
-                                        max(0.0, min(float(score), 1.0)),
-                                        text=f"Cosine Similarity Score: {score}",
-                                    )
+                                unsafe_allow_html=True,
+                            )
+                            with st.expander("Xem nội dung và điểm liên quan"):
+                                st.write(result.get("content", ""))
+                                if result.get("wordcount"):
+                                    st.caption(f"Độ dài: {result['wordcount']} từ")
+                                st.progress(score, text=f"Cosine similarity: {score:.3f}")
                 else:
-                    st.error("Lỗi phản hồi dữ liệu từ API Backend.")
-            except:
-                st.error(
-                    "Không thể kết nối với Backend Server. Vui lòng đảm bảo server uvicorn FastAPI đang chạy."
-                )
-        else:
-            st.warning("Vui lòng nhập nội dung cần tìm kiếm!")
+                    st.error("Không nhận được dữ liệu hợp lệ từ máy chủ.")
+            except requests.RequestException:
+                st.error("Không thể kết nối với máy chủ. Vui lòng kiểm tra Backend API.")
 
-# ==========================================
-# TAB 2: DOCUMENT ANALYTICS - Thống kê dữ liệu MongoDB
-# ==========================================
-with tab2:
-    st.subheader("Hệ thống Quản trị & Phân tích kho dữ liệu MongoDB")
+
+elif page == "Phân tích dữ liệu":
+    page_header(
+        "Phân tích dữ liệu",
+        "Tổng quan kho tài liệu",
+        "Theo dõi quy mô, chủ đề và trạng thái đồng bộ của nguồn dữ liệu.",
+    )
 
     try:
-        resp = requests.get(f"{API_BASE}/documents")
-        if resp.status_code == 200:
-            data = resp.json()
+        response = requests.get(f"{API_BASE}/documents")
+        if response.status_code == 200:
+            data = response.json()
             df = pd.DataFrame(data)
 
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Tổng văn bản (Documents)", len(df))
-            m2.metric(
-                "Nhãn độc lập (Tags Unique)",
-                df["tags"].nunique() if "tags" in df.columns else 0,
+            metric_cols = st.columns(4)
+            metric_cols[0].metric("Tổng tài liệu", len(df))
+            topic_column = "tags" if "tags" in df.columns else "category"
+            metric_cols[1].metric(
+                "Chủ đề độc lập",
+                df[topic_column].nunique() if topic_column in df.columns else 0,
             )
-            m3.metric("Nguồn Dataset", "VNExpress (Kaggle)")
-            m4.metric("Dữ liệu Vector Space", "Đồng bộ", delta="FAISS Ready")
+            metric_cols[2].metric("Nguồn dữ liệu", "VNExpress")
+            metric_cols[3].metric("Trạng thái chỉ mục", "Đồng bộ", delta="FAISS Ready")
 
-            st.write("---")
-            col_chart, col_table = st.columns([1, 1])
-
-            with col_chart:
-                st.write("**Tỷ lệ phân bổ tài liệu theo Nhãn chính (Tags)**")
-                if "tags" in df.columns:
-                    df["main_tag"] = df["tags"].apply(
-                        lambda x: (
-                            x.split(",")[0].strip() if isinstance(x, str) else "General"
+            chart_col, table_col = st.columns([1, 1.35])
+            with chart_col:
+                st.markdown(
+                    '<div class="section-title">Phân bổ theo chủ đề</div>',
+                    unsafe_allow_html=True,
+                )
+                if topic_column in df.columns and not df.empty:
+                    df["main_tag"] = df[topic_column].apply(
+                        lambda value: (
+                            value.split(",")[0].strip()
+                            if isinstance(value, str)
+                            else "Chưa phân loại"
                         )
                     )
-                    fig = px.pie(
+                    figure = px.pie(
                         df,
                         names="main_tag",
-                        hole=0.4,
-                        color_discrete_sequence=px.colors.qualitative.Safe,
+                        hole=0.62,
+                        color_discrete_sequence=[
+                            "#174f3f",
+                            "#5d8173",
+                            "#9db5aa",
+                            "#d89a45",
+                            "#b8a890",
+                            "#7d8c84",
+                        ],
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    figure.update_layout(
+                        margin=dict(l=10, r=10, t=10, b=10),
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        legend=dict(orientation="h", y=-0.15),
+                    )
+                    st.plotly_chart(figure, width="stretch")
+                else:
+                    st.info("Chưa có dữ liệu chủ đề để hiển thị.")
 
-            with col_table:
-                st.write("**Danh sách văn bản mới cập nhật**")
+            with table_col:
+                st.markdown(
+                    '<div class="section-title">Tài liệu cập nhật gần đây</div>',
+                    unsafe_allow_html=True,
+                )
                 display_cols = [
-                    c
-                    for c in ["title", "tags", "author", "updatetime"]
-                    if c in df.columns
+                    column
+                    for column in ["title", topic_column, "author", "created_at"]
+                    if column in df.columns
                 ]
-                st.dataframe(df[display_cols].tail(5), use_container_width=True)
-                if st.button("Xem cấu trúc JSON thô (MongoDB BSON)"):
+                if display_cols:
+                    st.dataframe(
+                        df[display_cols].tail(8),
+                        width="stretch",
+                        hide_index=True,
+                    )
+                if st.button("Xem dữ liệu JSON", width="stretch"):
                     st.json(data)
         else:
-            st.info("Cơ sở dữ liệu MongoDB hiện đang trống.")
-    except:
-        st.error(
-            "Backend offline. Vui lòng kích hoạt API Server để hiển thị biểu đồ phân tích."
-        )
+            st.info("Cơ sở dữ liệu hiện đang trống.")
+    except requests.RequestException:
+        st.error("Không thể kết nối với máy chủ để tải dữ liệu phân tích.")
 
-# ==========================================
-# TAB 3: ADD DOCUMENT - Thêm tài liệu mới
-# ==========================================
-with tab3:
-    st.subheader("Thêm Tài liệu Văn bản & Kích hoạt Vector Embedding")
+
+else:
+    page_header(
+        "Thêm tài liệu",
+        "Tạo tài liệu mới",
+        "Nhập nội dung và metadata. Sau khi lưu, tài liệu sẽ được đồng bộ vào "
+        "chỉ mục tìm kiếm hiện tại.",
+    )
 
     with st.form("entry_form", clear_on_submit=True):
-        c1, c2 = st.columns(2)
-        with c1:
-            title = st.text_input("Tiêu đề bài báo *")
+        left_col, right_col = st.columns(2)
+        with left_col:
+            title = st.text_input("Tiêu đề *")
             author = st.text_input("Tác giả")
-            publication = st.text_input(
-                "Nguồn xuất bản (Publication)", value="VNExpress"
-            )
-        with c2:
+            publication = st.text_input("Nguồn xuất bản", value="VNExpress")
+        with right_col:
             tags = st.text_input(
-                "Từ khóa / Nhãn (Tags) *", placeholder="Ví dụ: Công nghệ, AI, Giáo dục"
+                "Chủ đề / Nhãn *",
+                placeholder="Ví dụ: Công nghệ, Giáo dục",
             )
             updatetime = st.date_input("Ngày cập nhật")
 
         summary = st.text_area(
-            "Nội dung chi tiết bài viết (Dữ liệu văn bản phi cấu trúc) *", height=180
+            "Nội dung chi tiết *",
+            height=210,
+            placeholder="Nhập nội dung tài liệu...",
+        )
+        st.markdown(
+            '<div class="pipeline-note">Tài liệu mới sẽ được lưu vào MongoDB '
+            "và đồng bộ với chỉ mục tìm kiếm FAISS.</div>",
+            unsafe_allow_html=True,
         )
         submitted = st.form_submit_button(
-            "Lưu Tài Liệu & Đồng Bộ AI Index", type="primary"
+            "Lưu tài liệu",
+            type="primary",
+            width="stretch",
         )
 
         if submitted:
             if title and summary and tags:
-                word_count = len(summary.split())
                 payload = {
                     "title": title,
                     "author": author if author else "Ký giả VNExpress",
                     "publication": publication,
                     "tags": tags,
                     "updatetime": str(updatetime),
-                    "wordcount": word_count,
+                    "wordcount": len(summary.split()),
                     "content": summary,
                 }
                 try:
-                    res = requests.post(f"{API_BASE}/documents", json=payload)
-                    if res.status_code in [200, 201]:
-                        st.balloons()
-                        st.success(
-                            f"Đã lưu thành công bài báo: '{title}'. Pipeline đã hoàn thành trích xuất Vector Embedding!"
-                        )
+                    response = requests.post(f"{API_BASE}/documents", json=payload)
+                    if response.status_code in [200, 201]:
+                        st.success(f"Đã lưu thành công tài liệu: “{title}”.")
                     else:
                         st.error(
-                            f"Backend từ chối nạp dữ liệu (Mã lỗi: {res.status_code})"
+                            "Máy chủ từ chối lưu dữ liệu "
+                            f"(mã lỗi: {response.status_code})."
                         )
-                except:
-                    st.error(
-                        "Không thể kết nối đến API Endpoint. Vui lòng kiểm tra cổng mạng."
-                    )
+                except requests.RequestException:
+                    st.error("Không thể kết nối đến máy chủ để lưu tài liệu.")
             else:
-                st.warning("Vui lòng nhập đầy đủ các trường dữ liệu bắt buộc (*)")
+                st.warning("Vui lòng nhập đầy đủ các trường bắt buộc (*).")

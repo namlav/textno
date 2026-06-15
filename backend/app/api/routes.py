@@ -101,6 +101,11 @@ def search_documents(query: str, top_k: int = 5):
                 title=doc["title"],
                 content=doc["content"],
                 category=doc.get("category"),
+                author=doc.get("author"),
+                publication=doc.get("publication"),
+                tags=doc.get("tags"),
+                created_at=doc.get("created_at"),
+                wordcount=doc.get("wordcount"),
                 score=score,
             ))
     return search_results
