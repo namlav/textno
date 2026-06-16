@@ -1,4 +1,9 @@
-# textno - Hệ thống Quản lý & Tìm kiếm Văn bản Phi cấu trúc
+<div align = "center">
+
+# Textno - Hệ thống Quản lý & Tìm kiếm Văn bản Phi cấu trúc
+[![Nam Lav](https://img.shields.io/badge/Author-Nam_Lav-0D9488?style=for-the-badge&logo=github&logoColor=white)](https://github.com/namlav)
+
+</div>
 
 Bài tập nhóm môn **Khai phá dữ liệu** — Xây dựng hệ thống tìm kiếm ngữ nghĩa (Semantic Search) cho tài liệu văn bản.
 
@@ -186,6 +191,6 @@ python scripts/import_data.py data/processed/name_file.csv
    - Mapping embedding_id -> document MongoDB
 ```
 
-## Tác giả
-
-Nhóm 19 môn Khai phá dữ liệu — Đề tài xây dựng hệ thống Quản lý dữ liệu phi cấu trúc.
+## Thanks to Contributors
+### [Mikokoomi](https://github.com/Mikokoomi)
+### [NguyenCaoTien](https://github.com/NguyenCaoTien)
