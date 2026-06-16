@@ -16,6 +16,10 @@ class DocumentCreate(BaseModel):
     content: str
     category: Optional[str] = None
     author: Optional[str] = None
+    publication: Optional[str] = None
+    tags: Optional[str] = None
+    updatetime: Optional[str] = None
+    wordcount: Optional[int] = None
 
 
 class DocumentResponse(DocumentCreate):
@@ -32,4 +36,9 @@ class SearchResult(BaseModel):
     title: str
     content: str
     category: Optional[str] = None
+    author: Optional[str] = None
+    publication: Optional[str] = None
+    tags: Optional[str] = None
+    created_at: Optional[datetime] = None
+    wordcount: Optional[int] = None
     score: float
