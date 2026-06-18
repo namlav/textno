@@ -42,3 +42,11 @@ class SearchResult(BaseModel):
     created_at: Optional[datetime] = None
     wordcount: Optional[int] = None
     score: float
+
+
+class SearchComparisonResult(BaseModel):
+    semantic: list[SearchResult]
+    tfidf: list[SearchResult]
+    semantic_time: float
+    tfidf_time: float
+    query: str

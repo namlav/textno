@@ -1,13 +1,11 @@
-# main.py - Điểm khởi đầu của backend FastAPI
-#
-# Kỹ thuật:
-# - Sử dụng FastAPI framework để xây dựng RESTful API
-# - CORS middleware cho phép frontend (Streamlit) gọi API từ domain khác
-# - On-shutdown event đóng kết nối MongoDB an toàn
+import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
+from app.database.mongodb import get_collection, close_connection
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Text Document Management System",
@@ -15,7 +13,6 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Cho phép tất cả origin để frontend Streamlit ở cổng 8501 có thể gọi API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -27,8 +24,26 @@ app.add_middleware(
 app.include_router(router)
 
 
+@app.on_event("startup")
+def startup():
+    try:
+        collection = get_collection()
+        existing = collection.index_information()
+        if "embedding_id_1" not in existing:
+            logger.info("Creating index on embedding_id...")
+            collection.create_index("embedding_id", name="embedding_id_1")
+            logger.info("Index created.")
+        else:
+            logger.info("Index on embedding_id already exists.")
+
+        from app.services.tfidf_search import _ensure_index
+        logger.info("Pre-building TF-IDF index (first load may take a while)...")
+        _ensure_index()
+        logger.info("TF-IDF index ready.")
+    except Exception:
+        logger.exception("Startup initialization error (non-fatal)")
+
+
 @app.on_event("shutdown")
 def shutdown():
-    # Đảm bảo giải phóng tài nguyên MongoDB khi server tắt
-    from app.database.mongodb import close_connection
     close_connection()

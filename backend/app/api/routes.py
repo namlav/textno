@@ -12,13 +12,38 @@
 # - Tìm kiếm dùng FAISS (Inner Product ~ Cosine Similarity) thay vì MongoDB text search
 # - Kết quả tìm được từ FAISS mapping ngược về MongoDB qua embedding_id
 
+import logging
+import time as time_module
+
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
 from bson import ObjectId
-from app.models.document import DocumentCreate, DocumentResponse, SearchResult
+from app.models.document import DocumentCreate, DocumentResponse, SearchResult, SearchComparisonResult
 from app.database.mongodb import get_collection
 from app.services.embedding import generate_embedding
 from app.services.search import add_embedding, search as faiss_search
+from app.services import tfidf_search
+
+logger = logging.getLogger(__name__)
+
+
+def _safe_str(value) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return ",".join(str(v) for v in value)
+    if not isinstance(value, str):
+        return str(value)
+    return value
+
+
+def _safe_int(value) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 router = APIRouter()
 
@@ -49,7 +74,8 @@ def create_document(doc: DocumentCreate):
 @router.get("/documents", response_model=list[DocumentResponse])
 def list_documents():
     collection = get_collection()
-    docs = collection.find().sort("created_at", -1)
+    docs = list(collection.find())
+    docs.sort(key=lambda d: d.get("created_at") or "", reverse=True)
     results = []
     for doc in docs:
         doc["_id"] = str(doc["_id"])
@@ -84,28 +110,98 @@ def delete_document(doc_id: str):
 
 @router.post("/search", response_model=list[SearchResult])
 def search_documents(query: str, top_k: int = 5):
-    # Bước 1: Dùng FAISS tìm top_k vector gần nhất với query vector
-    collection = get_collection()
-    results = faiss_search(query, top_k)
+    try:
+        collection = get_collection()
+        results = faiss_search(query, top_k)
+        if not results:
+            return []
 
-    if not results:
-        return []
+        embedding_ids = [eid for eid, _ in results]
+        doc_map = {}
+        for doc in collection.find({"embedding_id": {"$in": embedding_ids}}):
+            doc_map[doc.get("embedding_id")] = doc
 
-    # Bước 2: Mapping embedding_id -> document trong MongoDB
-    search_results = []
-    for embedding_id, score in results:
-        doc = collection.find_one({"embedding_id": embedding_id})
-        if doc:
-            search_results.append(SearchResult(
-                id=str(doc["_id"]),
-                title=doc["title"],
-                content=doc["content"],
-                category=doc.get("category"),
-                author=doc.get("author"),
-                publication=doc.get("publication"),
-                tags=doc.get("tags"),
-                created_at=doc.get("created_at"),
-                wordcount=doc.get("wordcount"),
-                score=score,
-            ))
-    return search_results
+        search_results = []
+        for embedding_id, score in results:
+            doc = doc_map.get(embedding_id)
+            if doc:
+                search_results.append(SearchResult(
+                    id=str(doc["_id"]),
+                    title=doc.get("title", "") or "",
+                    content=doc.get("content", "") or "",
+                    category=_safe_str(doc.get("category")),
+                    author=_safe_str(doc.get("author")),
+                    publication=_safe_str(doc.get("publication")),
+                    tags=_safe_str(doc.get("tags")),
+                    created_at=doc.get("created_at"),
+                    wordcount=_safe_int(doc.get("wordcount")),
+                    score=score,
+                ))
+        return search_results
+    except Exception:
+        logger.exception("Search failed")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post("/search/tfidf", response_model=list[SearchResult])
+def search_documents_tfidf(query: str, top_k: int = 5):
+    return tfidf_search.search(query, top_k)
+
+
+@router.post("/search/compare", response_model=SearchComparisonResult)
+def search_documents_compare(query: str, top_k: int = 5):
+    try:
+        t0 = time_module.time()
+        semantic_results = faiss_search(query, top_k)
+        semantic_time = round(time_module.time() - t0, 4)
+
+        collection = get_collection()
+        embedding_ids = [eid for eid, _ in semantic_results]
+        doc_map = {}
+        for doc in collection.find({"embedding_id": {"$in": embedding_ids}}):
+            doc_map[doc.get("embedding_id")] = doc
+
+        semantic_rich = []
+        for embedding_id, score in semantic_results:
+            doc = doc_map.get(embedding_id)
+            if doc:
+                semantic_rich.append(SearchResult(
+                    id=str(doc["_id"]),
+                    title=doc.get("title", "") or "",
+                    content=doc.get("content", "") or "",
+                    category=_safe_str(doc.get("category")),
+                    author=_safe_str(doc.get("author")),
+                    publication=_safe_str(doc.get("publication")),
+                    tags=_safe_str(doc.get("tags")),
+                    created_at=doc.get("created_at"),
+                    wordcount=_safe_int(doc.get("wordcount")),
+                    score=score,
+                ))
+
+        t1 = time_module.time()
+        tfidf_raw = tfidf_search.search(query, top_k)
+        tfidf_time = round(time_module.time() - t1, 4)
+
+        tfidf_rich = [SearchResult(
+            id=r.get("id", ""),
+            title=r.get("title", "") or "",
+            content=r.get("content", "") or "",
+            category=_safe_str(r.get("category")),
+            author=_safe_str(r.get("author")),
+            publication=_safe_str(r.get("publication")),
+            tags=_safe_str(r.get("tags")),
+            created_at=r.get("created_at"),
+            wordcount=_safe_int(r.get("wordcount")),
+            score=float(r.get("score", 0.0)),
+        ) for r in tfidf_raw]
+
+        return SearchComparisonResult(
+            semantic=semantic_rich,
+            tfidf=tfidf_rich,
+            semantic_time=semantic_time,
+            tfidf_time=tfidf_time,
+            query=query,
+        )
+    except Exception:
+        logger.exception("Search compare failed")
+        raise HTTPException(status_code=500, detail="Internal server error")
