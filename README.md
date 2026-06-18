@@ -83,16 +83,11 @@ textno/
 
 ## Dataset
 
-### 1. VnExpress News (Nguồn chính)
+### 1. Kaggle (Nguồn chính)
 
 - **Kaggle**: [Vietnamese Online News Dataset](https://www.kaggle.com/datasets/haitranquangofficial/vietnamese-online-news-dataset) (150K+ bài báo)
 - **Schema CSV**: `id, title, updatetime, wordcount, publication, tags, content, author`
-- **Mẫu local**: `data/raw/dataset_kaggle_sample_10000.csv` (10,000 articles, stratified sampling theo chủ đề)
 
-### 2. Goodreads Books (Nguồn phụ, metadata)
-
-- Dataset sách với genres, rating, author, description
-- Script preprocessing: `scripts/preprocess_books.py`
 
 ## Hướng dẫn sử dụng
 
