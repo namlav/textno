@@ -23,10 +23,18 @@ def generate_and_store_embeddings(
     embed_dir: str = "data/embeddings",
 ):
     df = pd.read_csv(csv_path)
-    if text_column not in df.columns:
-        raise ValueError(f"Column '{text_column}' not found in {csv_path}")
 
-    texts = df[text_column].astype(str).tolist()
+    # Tự động nhận diện cột text: Nếu không thấy 'embedding_text', tự động chuyển sang tìm 'content'
+    if text_column not in df.columns:
+        if "content" in df.columns:
+            text_column = "content"
+        else:
+            raise ValueError(
+                f"Không tìm thấy cột '{text_column}' hoặc 'content' trong file {csv_path}"
+            )
+
+    # CHỈNH SỬA QUAN TRỌNG: Ép toàn bộ dữ liệu thành kiểu string và xử lý NaN để tránh lỗi Unsupported input type: float
+    texts = df[text_column].fillna("").astype(str).tolist()
     print(f"Generating embeddings for {len(texts)} documents...")
 
     embeddings = generate_embeddings_batch(texts)
@@ -34,7 +42,9 @@ def generate_and_store_embeddings(
 
     np.save(os.path.join(embed_dir, "embeddings.npy"), embeddings)
     if "source_id" in df.columns:
-        df[["source_id"]].to_csv(os.path.join(embed_dir, "embedding_ids.csv"), index=False)
+        df[["source_id"]].to_csv(
+            os.path.join(embed_dir, "embedding_ids.csv"), index=False
+        )
 
     print(f"Embeddings saved to {embed_dir}/embeddings.npy")
     print(f"Shape: {embeddings.shape}")
@@ -54,7 +64,7 @@ if __name__ == "__main__":
         if len(sys.argv) > 1
         else os.path.join(project_root, "data/processed/cleaned.csv")
     )
-    text_col = sys.argv[2] if len(sys.argv) > 2 else "content"
+    text_col = sys.argv[2] if len(sys.argv) > 2 else "embedding_text"
 
     # Định vị chính xác thư mục embeddings nằm trong project root
     embed_dir = (

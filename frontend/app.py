@@ -269,9 +269,12 @@ def safe(value, fallback: str = "") -> str:
 
 def _render_search_card(result):
     raw_tags = result.get("tags") or result.get("category") or "Chưa phân loại"
-    first_tag = raw_tags.split(",")[0] if isinstance(raw_tags, str) else "Chưa phân loại"
+    first_tag = (
+        raw_tags.split(",")[0] if isinstance(raw_tags, str) else "Chưa phân loại"
+    )
     score = max(0.0, min(float(result.get("score", 0.0)), 1.0))
-    st.markdown(f"""
+    st.markdown(
+        f"""
         <article class="result-card" style="margin-bottom:.65rem">
             <span class="result-tag">{safe(first_tag, "Chưa phân loại")}</span>
             <h3>{safe(result.get("title"), "Tài liệu chưa có tiêu đề")}</h3>
@@ -282,7 +285,9 @@ def _render_search_card(result):
                 · <span class="score">{round(score * 100)}% liên quan</span>
             </div>
         </article>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
     with st.expander("Xem nội dung và điểm liên quan"):
         st.write(result.get("content", ""))
         if result.get("wordcount"):
@@ -372,14 +377,14 @@ if page == "Tìm kiếm tài liệu":
                 sem_status = st.empty()
                 sem_status.markdown(
                     '<div style="font-size:.82rem;font-weight:700;color:#174f3f">'
-                    '🔮 Tìm kiếm ngữ nghĩa (Semantic) · đang tìm…</div>',
+                    "🔮 Tìm kiếm ngữ nghĩa (Semantic) · đang tìm…</div>",
                     unsafe_allow_html=True,
                 )
             with tfidf_col:
                 tfidf_status = st.empty()
                 tfidf_status.markdown(
                     '<div style="font-size:.82rem;font-weight:700;color:#d89a45">'
-                    '📊 Tìm kiếm từ khóa (TF-IDF) · đang tìm…</div>',
+                    "📊 Tìm kiếm từ khóa (TF-IDF) · đang tìm…</div>",
                     unsafe_allow_html=True,
                 )
 
@@ -388,11 +393,13 @@ if page == "Tìm kiếm tài liệu":
             with ThreadPoolExecutor(max_workers=2) as executor:
                 futures = {
                     executor.submit(
-                        requests.post, f"{API_BASE}/search",
+                        requests.post,
+                        f"{API_BASE}/search",
                         params={"query": query, "top_k": top_k},
                     ): "semantic",
                     executor.submit(
-                        requests.post, f"{API_BASE}/search/tfidf",
+                        requests.post,
+                        f"{API_BASE}/search/tfidf",
                         params={"query": query, "top_k": top_k},
                     ): "tfidf",
                 }
@@ -438,13 +445,9 @@ if page == "Tìm kiếm tài liệu":
                                 )
                     except requests.RequestException:
                         if name == "semantic":
-                            sem_status.error(
-                                "🔮 Semantic: không thể kết nối máy chủ"
-                            )
+                            sem_status.error("🔮 Semantic: không thể kết nối máy chủ")
                         else:
-                            tfidf_status.error(
-                                "📊 TF-IDF: không thể kết nối máy chủ"
-                            )
+                            tfidf_status.error("📊 TF-IDF: không thể kết nối máy chủ")
 
             if sem_ok and tfidf_ok:
                 st.session_state.last_search_query = query
@@ -471,9 +474,7 @@ elif page == "Phân tích dữ liệu":
                 df[topic_column].nunique() if topic_column in df.columns else 0,
             )
             metric_cols[2].metric("Nguồn dữ liệu", "Kaggle")
-            metric_cols[3].metric(
-                "Trạng thái chỉ mục", "Đồng bộ", delta="FAISS + TF-IDF"
-            )
+            metric_cols[3].metric("Trạng thái chỉ mục", "Đồng bộ", delta="FAISS")
 
             chart_col, table_col = st.columns([1, 1.35])
             with chart_col:
@@ -660,7 +661,8 @@ elif page == "Phân tích dữ liệu":
                     "Kỹ thuật": ["Semantic"] * len(sem_scores)
                     + ["TF-IDF"] * len(tfidf_scores),
                     "Điểm số": sem_scores + tfidf_scores,
-                    "Thứ hạng": list(range(1, len(sem_scores) + 1)) * 2,
+                    "Thứ hạng": list(range(1, len(sem_scores) + 1))
+                    + list(range(1, len(tfidf_scores) + 1)),
                 }
             )
             score_fig = px.line(
