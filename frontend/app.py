@@ -1,11 +1,13 @@
 import html
 import time
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import requests
 import streamlit as st
-
 
 API_BASE = "http://localhost:8000"
 
@@ -265,6 +267,29 @@ def safe(value, fallback: str = "") -> str:
     return html.escape(str(value if value not in (None, "") else fallback))
 
 
+def _render_search_card(result):
+    raw_tags = result.get("tags") or result.get("category") or "Chưa phân loại"
+    first_tag = raw_tags.split(",")[0] if isinstance(raw_tags, str) else "Chưa phân loại"
+    score = max(0.0, min(float(result.get("score", 0.0)), 1.0))
+    st.markdown(f"""
+        <article class="result-card" style="margin-bottom:.65rem">
+            <span class="result-tag">{safe(first_tag, "Chưa phân loại")}</span>
+            <h3>{safe(result.get("title"), "Tài liệu chưa có tiêu đề")}</h3>
+            <p>{safe(result.get("publication"), "VNExpress")} ·
+            {safe(result.get("author"), "Ký giả")}</p>
+            <div class="result-meta">
+                {safe(result.get("created_at"), "Chưa rõ ngày")}
+                · <span class="score">{round(score * 100)}% liên quan</span>
+            </div>
+        </article>
+    """, unsafe_allow_html=True)
+    with st.expander("Xem nội dung và điểm liên quan"):
+        st.write(result.get("content", ""))
+        if result.get("wordcount"):
+            st.caption(f"Độ dài: {result['wordcount']} từ")
+        st.progress(score, text=f"Điểm số: {score:.3f}")
+
+
 with st.sidebar:
     st.markdown(
         """
@@ -337,62 +362,99 @@ if page == "Tìm kiếm tài liệu":
         if not query:
             st.warning("Vui lòng nhập nội dung cần tìm kiếm.")
         else:
-            start_time = time.time()
-            try:
-                response = requests.post(
-                    f"{API_BASE}/search",
-                    params={"query": query, "top_k": top_k},
-                )
-                if response.status_code == 200:
-                    results = response.json()
-                    latency = round(time.time() - start_time, 3)
-                    st.markdown(
-                        '<div class="section-title">Kết quả nổi bật</div>'
-                        f'<div class="results-meta">{len(results)} tài liệu · {latency} giây</div>',
-                        unsafe_allow_html=True,
-                    )
+            st.markdown(
+                '<div class="section-title">Kết quả tìm kiếm</div>',
+                unsafe_allow_html=True,
+            )
 
-                    result_cols = st.columns(min(len(results), 3) or 1)
-                    for index, result in enumerate(results):
-                        raw_tags = result.get("tags") or result.get("category") or "Chưa phân loại"
-                        first_tag = (
-                            raw_tags.split(",")[0]
-                            if isinstance(raw_tags, str)
-                            else "Chưa phân loại"
-                        )
-                        score = max(0.0, min(float(result.get("score", 0.0)), 1.0))
-                        with result_cols[index % len(result_cols)]:
-                            st.markdown(
-                                f"""
-                                <article class="result-card">
-                                    <span class="result-tag">{safe(first_tag, "Chưa phân loại")}</span>
-                                    <h3>{safe(result.get("title"), "Tài liệu chưa có tiêu đề")}</h3>
-                                    <p>{safe(result.get("publication"), "VNExpress")} ·
-                                    {safe(result.get("author"), "Ký giả")}</p>
-                                    <div class="result-meta">
-                                        {safe(result.get("created_at"), "Chưa rõ ngày")}
-                                        · <span class="score">{round(score * 100)}% liên quan</span>
-                                    </div>
-                                </article>
-                                """,
-                                unsafe_allow_html=True,
+            sem_col, tfidf_col = st.columns(2)
+            with sem_col:
+                sem_status = st.empty()
+                sem_status.markdown(
+                    '<div style="font-size:.82rem;font-weight:700;color:#174f3f">'
+                    '🔮 Tìm kiếm ngữ nghĩa (Semantic) · đang tìm…</div>',
+                    unsafe_allow_html=True,
+                )
+            with tfidf_col:
+                tfidf_status = st.empty()
+                tfidf_status.markdown(
+                    '<div style="font-size:.82rem;font-weight:700;color:#d89a45">'
+                    '📊 Tìm kiếm từ khóa (TF-IDF) · đang tìm…</div>',
+                    unsafe_allow_html=True,
+                )
+
+            sem_ok = False
+            tfidf_ok = False
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                futures = {
+                    executor.submit(
+                        requests.post, f"{API_BASE}/search",
+                        params={"query": query, "top_k": top_k},
+                    ): "semantic",
+                    executor.submit(
+                        requests.post, f"{API_BASE}/search/tfidf",
+                        params={"query": query, "top_k": top_k},
+                    ): "tfidf",
+                }
+                for future in as_completed(futures):
+                    name = futures[future]
+                    try:
+                        resp = future.result()
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            elapsed = round(resp.elapsed.total_seconds(), 4)
+                            if name == "semantic":
+                                sem_ok = True
+                                st.session_state.last_semantic_results = data
+                                st.session_state.last_semantic_time = elapsed
+                                container = sem_col
+                                label = "🔮 Tìm kiếm ngữ nghĩa (Semantic)"
+                                color = "#174f3f"
+                            else:
+                                tfidf_ok = True
+                                st.session_state.last_tfidf_results = data
+                                st.session_state.last_tfidf_time = elapsed
+                                container = tfidf_col
+                                label = "📊 Tìm kiếm từ khóa (TF-IDF)"
+                                color = "#d89a45"
+
+                            with container:
+                                st.markdown(
+                                    f'<div style="font-size:.82rem;font-weight:700;margin-bottom:.5rem;'
+                                    f'color:{color}">{label} · '
+                                    f'<span style="font-weight:400;color:#66716b">{elapsed}s</span></div>',
+                                    unsafe_allow_html=True,
+                                )
+                                for result in data:
+                                    _render_search_card(result)
+                        else:
+                            if name == "semantic":
+                                sem_status.error(
+                                    "🔮 Semantic: không nhận được dữ liệu từ máy chủ"
+                                )
+                            else:
+                                tfidf_status.error(
+                                    "📊 TF-IDF: không nhận được dữ liệu từ máy chủ"
+                                )
+                    except requests.RequestException:
+                        if name == "semantic":
+                            sem_status.error(
+                                "🔮 Semantic: không thể kết nối máy chủ"
                             )
-                            with st.expander("Xem nội dung và điểm liên quan"):
-                                st.write(result.get("content", ""))
-                                if result.get("wordcount"):
-                                    st.caption(f"Độ dài: {result['wordcount']} từ")
-                                st.progress(score, text=f"Cosine similarity: {score:.3f}")
-                else:
-                    st.error("Không nhận được dữ liệu hợp lệ từ máy chủ.")
-            except requests.RequestException:
-                st.error("Không thể kết nối với máy chủ. Vui lòng kiểm tra Backend API.")
+                        else:
+                            tfidf_status.error(
+                                "📊 TF-IDF: không thể kết nối máy chủ"
+                            )
+
+            if sem_ok and tfidf_ok:
+                st.session_state.last_search_query = query
 
 
 elif page == "Phân tích dữ liệu":
     page_header(
         "Phân tích dữ liệu",
         "Tổng quan kho tài liệu",
-        "Theo dõi quy mô, chủ đề và trạng thái đồng bộ của nguồn dữ liệu.",
+        "Theo dõi quy mô, chủ đề, trạng thái đồng bộ và so sánh hiệu năng giữa các kỹ thuật tìm kiếm.",
     )
 
     try:
@@ -408,8 +470,10 @@ elif page == "Phân tích dữ liệu":
                 "Chủ đề độc lập",
                 df[topic_column].nunique() if topic_column in df.columns else 0,
             )
-            metric_cols[2].metric("Nguồn dữ liệu", "VNExpress")
-            metric_cols[3].metric("Trạng thái chỉ mục", "Đồng bộ", delta="FAISS Ready")
+            metric_cols[2].metric("Nguồn dữ liệu", "Kaggle")
+            metric_cols[3].metric(
+                "Trạng thái chỉ mục", "Đồng bộ", delta="FAISS + TF-IDF"
+            )
 
             chart_col, table_col = st.columns([1, 1.35])
             with chart_col:
@@ -469,6 +533,347 @@ elif page == "Phân tích dữ liệu":
             st.info("Cơ sở dữ liệu hiện đang trống.")
     except requests.RequestException:
         st.error("Không thể kết nối với máy chủ để tải dữ liệu phân tích.")
+
+    if "last_search_query" in st.session_state and st.session_state.last_search_query:
+        st.markdown("---")
+        st.markdown(
+            '<div class="section-title">So sánh kỹ thuật tìm kiếm</div>',
+            unsafe_allow_html=True,
+        )
+        query = st.session_state.last_search_query
+        semantic_results = st.session_state.last_semantic_results
+        tfidf_results = st.session_state.last_tfidf_results
+        semantic_time = st.session_state.last_semantic_time
+        tfidf_time = st.session_state.last_tfidf_time
+
+        st.markdown(
+            f'<div class="results-meta">Truy vấn: “{safe(query)}”</div>',
+            unsafe_allow_html=True,
+        )
+
+        compare_metrics = st.columns(4)
+        faster = "Semantic" if semantic_time < tfidf_time else "TF-IDF"
+        speed_ratio = tfidf_time / semantic_time if semantic_time > 0 else 0
+        sem_scores = [
+            max(0.0, min(float(r.get("score", 0.0)), 1.0)) for r in semantic_results
+        ]
+        tfidf_scores = [
+            max(0.0, min(float(r.get("score", 0.0)), 1.0)) for r in tfidf_results
+        ]
+        sem_avg = sum(sem_scores) / len(sem_scores) if sem_scores else 0
+        tfidf_avg = sum(tfidf_scores) / len(tfidf_scores) if tfidf_scores else 0
+
+        semantic_ids = {r.get("id") for r in semantic_results}
+        tfidf_ids = {r.get("id") for r in tfidf_results}
+        overlap_count = len(semantic_ids & tfidf_ids)
+
+        compare_metrics[0].metric(
+            "Tốc độ Semantic",
+            f"{semantic_time:.4f}s",
+            delta=f"Nhanh hơn {speed_ratio:.1f}x" if faster == "Semantic" else None,
+            delta_color="normal" if faster == "Semantic" else "off",
+        )
+        compare_metrics[1].metric(
+            "Tốc độ TF-IDF",
+            f"{tfidf_time:.4f}s",
+            delta=f"Nhanh hơn {1/speed_ratio:.1f}x" if faster == "TF-IDF" else None,
+            delta_color="normal" if faster == "TF-IDF" else "off",
+        )
+        compare_metrics[2].metric(
+            "Điểm trung bình Semantic",
+            f"{sem_avg:.1%}",
+            delta=(
+                f"Cao hơn {(sem_avg - tfidf_avg):.1%}" if sem_avg > tfidf_avg else None
+            ),
+            delta_color="normal" if sem_avg > tfidf_avg else "off",
+        )
+        compare_metrics[3].metric(
+            "Điểm trung bình TF-IDF",
+            f"{tfidf_avg:.1%}",
+            delta=(
+                f"Cao hơn {(tfidf_avg - sem_avg):.1%}" if tfidf_avg > sem_avg else None
+            ),
+            delta_color="normal" if tfidf_avg > sem_avg else "off",
+        )
+
+        st.markdown(
+            '<div class="section-title">Phân tích chi tiết</div>',
+            unsafe_allow_html=True,
+        )
+
+        detail_tabs = st.tabs(
+            [
+                "Tốc độ tìm kiếm",
+                "Điểm số tương đồng",
+                "Độ khớp kết quả",
+                "Phân tích từ khóa",
+            ]
+        )
+
+        with detail_tabs[0]:
+            speed_fig = go.Figure()
+            speed_fig.add_trace(
+                go.Bar(
+                    name="Semantic",
+                    x=["Semantic Search"],
+                    y=[semantic_time],
+                    marker_color="#174f3f",
+                    text=[f"{semantic_time:.4f}s"],
+                    textposition="outside",
+                )
+            )
+            speed_fig.add_trace(
+                go.Bar(
+                    name="TF-IDF",
+                    x=["TF-IDF Search"],
+                    y=[tfidf_time],
+                    marker_color="#d89a45",
+                    text=[f"{tfidf_time:.4f}s"],
+                    textposition="outside",
+                )
+            )
+            speed_fig.update_layout(
+                title="Thời gian phản hồi (giây)",
+                height=300,
+                margin=dict(l=20, r=20, t=40, b=20),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                yaxis_title="Giây",
+                showlegend=True,
+                legend=dict(orientation="h", y=-0.2),
+            )
+            st.plotly_chart(speed_fig, width="stretch")
+            st.markdown(
+                f'<div class="results-meta">'
+                f"• Semantic search: <b>{semantic_time:.4f}s</b> — "
+                f"sử dụng FAISS index với vector embedding (SentenceTransformer).<br>"
+                f"• TF-IDF search: <b>{tfidf_time:.4f}s</b> — "
+                f"tính toán cosine similarity trên ma trận TF-IDF của toàn bộ corpus.<br>"
+                f"• Chênh lệch: <b>{abs(semantic_time - tfidf_time):.4f}s</b> "
+                f'({"Semantic nhanh hơn" if faster == "Semantic" else "TF-IDF nhanh hơn"}).</div>',
+                unsafe_allow_html=True,
+            )
+
+        with detail_tabs[1]:
+            score_df = pd.DataFrame(
+                {
+                    "Kỹ thuật": ["Semantic"] * len(sem_scores)
+                    + ["TF-IDF"] * len(tfidf_scores),
+                    "Điểm số": sem_scores + tfidf_scores,
+                    "Thứ hạng": list(range(1, len(sem_scores) + 1)) * 2,
+                }
+            )
+            score_fig = px.line(
+                score_df,
+                x="Thứ hạng",
+                y="Điểm số",
+                color="Kỹ thuật",
+                markers=True,
+                color_discrete_map={"Semantic": "#174f3f", "TF-IDF": "#d89a45"},
+            )
+            score_fig.update_layout(
+                title="Điểm số tương đồng theo thứ hạng",
+                height=300,
+                margin=dict(l=20, r=20, t=40, b=20),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                yaxis_title="Điểm số",
+                yaxis_range=[0, 1],
+                legend=dict(orientation="h", y=-0.2),
+            )
+            st.plotly_chart(score_fig, width="stretch")
+
+            score_comp_cols = st.columns(2)
+            with score_comp_cols[0]:
+                st.markdown(
+                    f'<div class="result-card" style="min-height:auto">'
+                    f'<span class="result-tag">🔮 Semantic</span>'
+                    f'<div style="margin-top:.5rem">'
+                    f"• Cao nhất: <b>{max(sem_scores):.1%}</b><br>"
+                    f"• Thấp nhất: <b>{min(sem_scores):.1%}</b><br>"
+                    f"• Trung bình: <b>{sem_avg:.1%}</b><br>"
+                    f"• Phân tán: <b>{max(sem_scores) - min(sem_scores):.1%}</b>"
+                    f"</div></div>",
+                    unsafe_allow_html=True,
+                )
+            with score_comp_cols[1]:
+                st.markdown(
+                    f'<div class="result-card" style="min-height:auto">'
+                    f'<span class="result-tag">📊 TF-IDF</span>'
+                    f'<div style="margin-top:.5rem">'
+                    f"• Cao nhất: <b>{max(tfidf_scores):.1%}</b><br>"
+                    f"• Thấp nhất: <b>{min(tfidf_scores):.1%}</b><br>"
+                    f"• Trung bình: <b>{tfidf_avg:.1%}</b><br>"
+                    f"• Phân tán: <b>{max(tfidf_scores) - min(tfidf_scores):.1%}</b>"
+                    f"</div></div>",
+                    unsafe_allow_html=True,
+                )
+
+            st.markdown(
+                f'<div class="results-meta">'
+                f"• Semantic search cho điểm số tập trung và ổn định hơn, "
+                f"phản ánh đúng mức độ liên quan ngữ nghĩa.<br>"
+                f"• TF-IDF có xu hướng cho điểm cao với tài liệu khớp từ khóa chính xác."
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+        with detail_tabs[2]:
+            overlap_pct = overlap_count / max(len(semantic_ids | tfidf_ids), 1)
+            st.markdown(
+                f'<div class="result-card" style="min-height:auto;text-align:center;'
+                f'padding:1.5rem">'
+                f'<span style="font-size:2rem;font-weight:700;color:#174f3f">'
+                f"{overlap_count}/{len(semantic_ids | tfidf_ids)}</span><br>"
+                f'<span style="color:#66716b;font-size:.82rem">'
+                f"kết quả trùng nhau giữa hai kỹ thuật ({overlap_pct:.0%})</span>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+            sem_only = semantic_ids - tfidf_ids
+            tfidf_only = tfidf_ids - semantic_ids
+            overlap = semantic_ids & tfidf_ids
+
+            overlap_cols = st.columns(3)
+            with overlap_cols[0]:
+                st.markdown(
+                    f'<div class="result-card" style="min-height:auto;border-left:3px solid #174f3f">'
+                    f'<span class="result-tag">🔮 Chỉ Semantic</span>'
+                    f'<div style="margin-top:.5rem;font-size:.72rem;color:#66716b">'
+                    + (
+                        "<br>".join(
+                            f'• {safe(next((r["title"] for r in semantic_results if r["id"] == sid), "?"))}'
+                            for sid in sem_only
+                        )
+                        if sem_only
+                        else "Không có"
+                    )
+                    + f"</div></div>",
+                    unsafe_allow_html=True,
+                )
+            with overlap_cols[1]:
+                st.markdown(
+                    f'<div class="result-card" style="min-height:auto;border-left:3px solid #d89a45">'
+                    f'<span class="result-tag">📊 Chỉ TF-IDF</span>'
+                    f'<div style="margin-top:.5rem;font-size:.72rem;color:#66716b">'
+                    + (
+                        "<br>".join(
+                            f'• {safe(next((r["title"] for r in tfidf_results if r["id"] == tid), "?"))}'
+                            for tid in tfidf_only
+                        )
+                        if tfidf_only
+                        else "Không có"
+                    )
+                    + f"</div></div>",
+                    unsafe_allow_html=True,
+                )
+            with overlap_cols[2]:
+                st.markdown(
+                    f'<div class="result-card" style="min-height:auto;border-left:3px solid #5d8173">'
+                    f'<span class="result-tag">🔄 Cả hai</span>'
+                    f'<div style="margin-top:.5rem;font-size:.72rem;color:#66716b">'
+                    + (
+                        "<br>".join(
+                            f'• {safe(next((r["title"] for r in semantic_results if r["id"] == oid), "?"))}'
+                            for oid in overlap
+                        )
+                        if overlap
+                        else "Không có"
+                    )
+                    + f"</div></div>",
+                    unsafe_allow_html=True,
+                )
+
+            st.markdown(
+                f'<div class="results-meta">'
+                f"• Độ phủ chung: <b>{overlap_pct:.0%}</b> — "
+                f'{"Cao" if overlap_pct > 0.5 else "Thấp"}, '
+                f'cho thấy {"sự tương đồng" if overlap_pct > 0.5 else "sự khác biệt"} '
+                f"giữa hai phương pháp tiếp cận.<br>"
+                f"• Kết quả chỉ xuất hiện ở Semantic cho thấy khả năng hiểu ngữ nghĩa sâu hơn.<br>"
+                f"• Kết quả chỉ xuất hiện ở TF-IDF thường là do khớp từ khóa chính xác."
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+        with detail_tabs[3]:
+            query_words = set(query.lower().split())
+            sem_titles = " ".join(r.get("title", "") for r in semantic_results).lower()
+            tfidf_titles = " ".join(r.get("title", "") for r in tfidf_results).lower()
+            sem_content = " ".join(
+                r.get("content", "") for r in semantic_results
+            ).lower()
+            tfidf_content = " ".join(
+                r.get("content", "") for r in tfidf_results
+            ).lower()
+
+            kw_data = []
+            for word in query_words:
+                if len(word) < 2:
+                    continue
+                sem_title_count = sem_titles.count(word)
+                tfidf_title_count = tfidf_titles.count(word)
+                sem_content_count = sem_content.count(word)
+                tfidf_content_count = tfidf_content.count(word)
+                kw_data.append(
+                    {
+                        "Từ khóa": word,
+                        "Semantic (tiêu đề)": sem_title_count,
+                        "TF-IDF (tiêu đề)": tfidf_title_count,
+                        "Semantic (nội dung)": sem_content_count,
+                        "TF-IDF (nội dung)": tfidf_content_count,
+                    }
+                )
+
+            if kw_data:
+                kw_df = pd.DataFrame(kw_data)
+                st.dataframe(kw_df, width="stretch", hide_index=True)
+
+                kw_fig = go.Figure()
+                kw_fig.add_trace(
+                    go.Bar(
+                        name="Semantic",
+                        x=[d["Từ khóa"] for d in kw_data],
+                        y=[
+                            d["Semantic (tiêu đề)"] + d["Semantic (nội dung)"]
+                            for d in kw_data
+                        ],
+                        marker_color="#174f3f",
+                    )
+                )
+                kw_fig.add_trace(
+                    go.Bar(
+                        name="TF-IDF",
+                        x=[d["Từ khóa"] for d in kw_data],
+                        y=[
+                            d["TF-IDF (tiêu đề)"] + d["TF-IDF (nội dung)"]
+                            for d in kw_data
+                        ],
+                        marker_color="#d89a45",
+                    )
+                )
+                kw_fig.update_layout(
+                    title="Tần suất xuất hiện của từ khóa trong kết quả",
+                    height=300,
+                    margin=dict(l=20, r=20, t=40, b=20),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    yaxis_title="Số lần xuất hiện",
+                    barmode="group",
+                    legend=dict(orientation="h", y=-0.2),
+                )
+                st.plotly_chart(kw_fig, width="stretch")
+            else:
+                st.info("Không có từ khóa đủ dài để phân tích.")
+
+            st.markdown(
+                f'<div class="results-meta">'
+                f"• TF-IDF thường khớp từ khóa chính xác hơn do cơ chế đối sánh token.<br>"
+                f"• Semantic search có thể tìm được tài liệu liên quan ngay cả khi không chứa từ khóa truy vấn."
+                f"</div>",
+                unsafe_allow_html=True,
+            )
 
 
 else:
